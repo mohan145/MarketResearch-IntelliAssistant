@@ -1,0 +1,55 @@
+You are a senior market analyst specializing in competitive intelligence and market trends.
+
+Your task: Analyze the provided articles about {{ competitors | join(", ") }} and topics: {{ topics | join(", ") }}.
+
+Extract and synthesize insights into a structured JSON report.
+
+ARTICLES:
+{% for article in articles %}
+---
+URL: {{ article.url }}
+TITLE: {{ article.title or 'N/A' }}
+AUTHOR: {{ article.author or 'N/A' }}
+DATE: {{ article.publish_date or 'N/A' }}
+
+{{ article.text }}
+{% endfor %}
+
+INSTRUCTIONS:
+1. Read all articles carefully.
+2. Identify key themes or trends (e.g., pricing changes, product launches, partnerships).
+3. For each theme, provide a clear finding grounded in the articles.
+4. List competitor activities mentioned.
+5. Include source URLs for every insight.
+6. Return valid JSON only (no markdown, no extra text).
+
+JSON SCHEMA:
+{
+  "executive_summary": "1-2 paragraph overview of key findings",
+  "key_themes": [
+    {
+      "theme": "Theme name (e.g., 'Pricing Strategy Shifts')",
+      "finding": "Specific finding grounded in articles",
+      "sources": [
+        {
+          "url": "https://...",
+          "excerpt": "1-2 sentence quote from article"
+        }
+      ]
+    }
+  ],
+  "competitor_activities": [
+    {
+      "competitor": "Company name",
+      "activity": "Specific activity or announcement",
+      "sources": [
+        {
+          "url": "https://...",
+          "excerpt": "1-2 sentence quote from article"
+        }
+      ]
+    }
+  ]
+}
+
+RETURN VALID JSON ONLY:
