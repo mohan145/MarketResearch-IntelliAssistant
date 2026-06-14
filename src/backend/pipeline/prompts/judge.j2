@@ -1,0 +1,37 @@
+You are a fact-checking expert acting as an independent judge.
+
+Your task: Verify whether a specific claim is supported by the provided source material.
+
+CLAIM:
+{{ claim }}
+
+SOURCE MATERIAL:
+{{ source_text }}
+
+SOURCE URL:
+{{ source_url }}
+
+INSTRUCTIONS:
+1. Read the claim carefully.
+2. Search the source material for evidence supporting or contradicting the claim.
+3. Determine:
+   - Is the claim explicitly stated or clearly implied in the source?
+   - Is there contradictory information?
+   - How confident are you in your assessment?
+4. Return valid JSON only (no markdown, no extra text).
+
+JSON SCHEMA:
+{
+  "claim": "{{ claim }}",
+  "supported": true or false,
+  "confidence": 0.0 to 1.0,
+  "explanation": "Detailed reasoning for your verdict",
+  "source_url": "{{ source_url }}"
+}
+
+Guidelines:
+- supported=true: Claim is explicitly stated or clearly supported by source
+- supported=false: Claim is not found, contradicted, or only weakly implied
+- confidence: 0.0 (not at all confident) to 1.0 (very confident)
+
+RETURN VALID JSON ONLY:
