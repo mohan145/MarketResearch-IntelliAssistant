@@ -23,7 +23,7 @@
 - Tests for every new module in `tests/` mirroring the `src/` structure
 
 ## Learning Notes
-- LEARNING_NOTES: ON
+- LEARNING_NOTES: OFF
 - When ON: after completing each step, generate two files — one in each subfolder of `docs/learning/`:
   - `docs/learning/project-notes/<topic>-project-notes.md` — what this component does in this project, design choices, gotchas
   - `docs/learning/theory-notes/<topic>-theory-notes.md` — general theory, how it works under the hood, interview Q&A, trade-offs vs alternatives
@@ -31,4 +31,4 @@
 - Toggle this per project by changing ON to OFF above.
 
 ## Active Task
-@docs/tasks/<your-task-file>.mddo 
+@docs/tasks/phase-3-frontend.md
