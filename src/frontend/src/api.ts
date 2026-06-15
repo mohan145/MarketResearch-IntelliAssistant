@@ -1,10 +1,20 @@
-// Base URL: localhost:8000 in local dev (EventSource doesn't work well through proxies)
+// Base URL: use Vite proxy in local dev, VITE_API_BASE_URL in production
+// In local dev: Vite proxies /api/* to localhost:8000
 // In production: set VITE_API_BASE_URL to the Azure Container Apps backend URL
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const res = await fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers ?? {}) } });
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  }
+  return res;
 }
 
 export interface ResearchRequest {
@@ -63,15 +73,14 @@ export interface Run {
   result: PipelineResult;
 }
 
-// Opens an SSE stream for a research run.
-// Caller handles 'message' events for progress and 'result' event for final output.
+// Opens an SSE stream for a research run using EventSource via Vite proxy
 export function streamResearch(payload: ResearchRequest): EventSource {
   // Build query params from ResearchRequest
   const params = new URLSearchParams();
   params.append("competitors", JSON.stringify(payload.competitors));
   params.append("topics", JSON.stringify(payload.topics));
   params.append("urls", JSON.stringify(payload.urls));
-  params.append("llm_provider", "google"); // Default to google; can be extended later
+  // Don't send llm_provider - let backend use .env setting
 
   const token = localStorage.getItem("token");
   let url = `${BASE_URL}/api/research/run?${params.toString()}`;
@@ -79,21 +88,21 @@ export function streamResearch(payload: ResearchRequest): EventSource {
     url += `&token=${token}`;
   }
 
+  console.log("streamResearch URL:", url);
+  console.log("BASE_URL:", BASE_URL);
+
   return new EventSource(url);
 }
 
 export async function getHistory(): Promise<Run[]> {
-  const res = await fetch(`${BASE_URL}/api/research/history`, {
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`${BASE_URL}/api/research/history`);
   if (!res.ok) throw new Error("Failed to fetch history");
-  return res.json();
+  const data = await res.json();
+  return data.runs;
 }
 
 export async function getRun(id: number): Promise<Run> {
-  const res = await fetch(`${BASE_URL}/api/research/${id}`, {
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`${BASE_URL}/api/research/${id}`);
   if (!res.ok) throw new Error("Failed to fetch run");
   return res.json();
 }
@@ -109,6 +118,11 @@ export async function login(
   });
   if (!res.ok) throw new Error("Invalid credentials");
   return res.json();
+}
+
+export function logout(): void {
+  localStorage.removeItem("token");
+  window.location.href = "/login";
 }
 
 export async function register(

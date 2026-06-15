@@ -1,90 +1,120 @@
 <template>
   <div class="page">
-    <h1>Market Research</h1>
-    <p class="subtitle">Analyze competitors and market trends from public sources.</p>
+    <h1>New Research</h1>
+    <p class="subtitle">Collect and analyze market intelligence from public sources.</p>
 
     <!-- Tabs -->
     <div class="tabs">
-      <button
-        v-for="tab in tabs"
-        :key="tab"
-        class="tab-button"
+      <button v-for="tab in tabs" :key="tab" class="tab-button"
         :class="{ active: activeTab === tab }"
-        @click="activeTab = tab"
-        :disabled="tab === 'progress' && !isRunning"
-      >
-        {{ tab === 'input' ? '📝 Input' : tab === 'progress' ? '⏳ Progress' : '📊 Results' }}
+        :disabled="(tab === 'progress' && !isRunning && progressLog.length === 0) || (tab === 'results' && !result)"
+        @click="activeTab = tab">
+        {{ tab === 'input' ? '1. Input' : tab === 'progress' ? '2. Progress' : '3. Results' }}
       </button>
     </div>
 
     <!-- TAB 1: Input Form -->
     <div v-if="activeTab === 'input'" class="tab-content">
-      <form @submit.prevent="submitResearch" class="form-card">
-        <div class="form-section">
-          <label for="competitors" class="form-label">Competitors / Topics</label>
-          <textarea
-            id="competitors"
-            v-model="input.competitors"
-            placeholder="e.g., OpenAI, Mistral AI, Cohere (comma-separated)"
-            class="form-input"
-          ></textarea>
+      <form @submit.prevent="submitResearch" class="research-form">
+
+        <div class="form-row">
+          <!-- Left column -->
+          <div class="form-col">
+            <div class="form-group">
+              <label class="form-label">Competitors</label>
+              <p class="form-hint">Companies or products to track (one per line)</p>
+              <textarea v-model="input.competitors" class="form-input tall"
+                placeholder="OpenAI&#10;Mistral AI&#10;Cohere"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Topics</label>
+              <p class="form-hint">Themes or questions to research (one per line)</p>
+              <textarea v-model="input.topics" class="form-input"
+                placeholder="Pricing strategy&#10;New model releases&#10;Enterprise features"></textarea>
+            </div>
+          </div>
+
+          <!-- Right column -->
+          <div class="form-col">
+            <div class="form-group">
+              <label class="form-label">Source URLs</label>
+              <p class="form-hint">Public pages to analyze — blogs, news, release notes (one per line, max 5)</p>
+              <textarea v-model="input.urls" class="form-input tall"
+                placeholder="https://mistral.ai/news/mistral-large-2407/&#10;https://www.anthropic.com/news/claude-3-5-sonnet"></textarea>
+            </div>
+            <div class="url-preview" v-if="parsedUrls.length > 0">
+              <div v-for="(url, i) in parsedUrls" :key="i" class="url-chip">
+                <span class="url-index">{{ i + 1 }}</span>
+                <span class="url-text">{{ url }}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="form-section">
-          <label for="urls" class="form-label">Source URLs</label>
-          <textarea
-            id="urls"
-            v-model="input.urls"
-            placeholder="e.g., https://openai.com/blog&#10;https://mistral.ai/news&#10;(one per line)"
-            class="form-input"
-          ></textarea>
+        <p v-if="error" class="error-text">{{ error }}</p>
+
+        <div class="form-footer">
+          <button type="submit" class="btn-primary btn-run" :disabled="isRunning">
+            {{ isRunning ? 'Analyzing...' : 'Run Analysis' }}
+          </button>
+          <span class="form-meta" v-if="parsedUrls.length > 0">
+            {{ parsedCompetitors.length }} competitors · {{ parsedTopics.length }} topics · {{ parsedUrls.length }} URLs
+          </span>
         </div>
 
-        <p v-if="error" class="error-text">⚠️ {{ error }}</p>
-
-        <button type="submit" class="btn-primary" :disabled="isRunning">
-          {{ isRunning ? 'Running...' : 'Run Analysis' }}
-        </button>
-
-        <div class="hints">
-          <p><strong>Sample URLs to try:</strong></p>
-          <ul>
-            <li>https://openai.com/index/gpt-4o-mini-advancing-cost-efficient-intelligence/</li>
-            <li>https://mistral.ai/news/mistral-large-2407/</li>
-            <li>https://www.anthropic.com/news/claude-3-5-sonnet</li>
-          </ul>
-        </div>
       </form>
     </div>
 
     <!-- TAB 2: Live Progress -->
     <div v-if="activeTab === 'progress'" class="tab-content">
       <div class="progress-card">
-        <h2>Research in Progress</h2>
+        <div class="progress-header">
+          <h2>{{ isRunning ? 'Analysis in progress...' : 'Analysis complete' }}</h2>
+          <div v-if="isRunning" class="spinner"></div>
+        </div>
+
+        <!-- URL status grid -->
+        <div v-if="urlStatuses.length > 0" class="url-status-grid">
+          <div v-for="(s, i) in urlStatuses" :key="i" class="url-status-item"
+            :class="s.ok === true ? 'ok' : s.ok === false ? 'fail' : 'pending'">
+            <span class="url-status-icon">{{ s.ok === true ? '✅' : s.ok === false ? '❌' : '⏳' }}</span>
+            <span class="url-status-text">{{ s.url }}</span>
+            <span v-if="s.ok === false" class="url-status-error">{{ s.error }}</span>
+          </div>
+        </div>
+
+        <!-- Pipeline log -->
         <div class="progress-log">
-          <div v-for="(msg, idx) in progressLog" :key="idx" class="progress-item">
+          <div v-for="(msg, idx) in progressLog" :key="idx" class="progress-item"
+            :class="msg.type">
             <span class="progress-icon">{{ msg.icon }}</span>
             <span class="progress-text">{{ msg.text }}</span>
           </div>
         </div>
+
+        <button v-if="!isRunning && result" @click="activeTab = 'results'" class="btn-primary" style="margin-top:1rem">
+          View Results
+        </button>
       </div>
     </div>
 
     <!-- TAB 3: Results -->
     <div v-if="activeTab === 'results'" class="tab-content">
       <div v-if="result" class="results-container">
+
         <!-- Executive Summary -->
         <section class="result-section">
           <div class="summary-card">
-            <h2>Executive Summary</h2>
+            <div class="summary-header">
+              <h2>Executive Summary</h2>
+              <span v-if="result.hallucination_count === 0" class="badge badge-success">✅ All claims verified</span>
+              <span v-else class="badge badge-warning">⚠️ {{ verifiedCount }}/{{ totalClaims }} claims verified</span>
+            </div>
             <p>{{ result.summary.executive_summary }}</p>
-            <div class="trust-badge">
-              <span v-if="result.hallucination_count === 0" class="badge badge-success">
-                ✅ All claims verified
-              </span>
-              <span v-else class="badge badge-warning">
-                ⚠️ {{ result.summary.key_themes.length + result.summary.competitor_activities.length - result.hallucination_count }}/{{ result.summary.key_themes.length + result.summary.competitor_activities.length }} claims verified
-              </span>
+            <div class="run-meta">
+              <span>{{ parsedUrls.length }} URLs</span>
+              <span>{{ result.run_duration_seconds.toFixed(1) }}s</span>
+              <span>{{ new Date(result.summary.generated_at).toLocaleString() }}</span>
             </div>
           </div>
         </section>
@@ -92,20 +122,17 @@
         <!-- Key Themes -->
         <section class="result-section">
           <h2>Key Themes</h2>
-          <div v-if="result.summary.key_themes.length === 0" class="empty-state">
-            No themes identified.
-          </div>
+          <div v-if="result.summary.key_themes.length === 0" class="empty-state">No themes identified.</div>
           <div v-for="(theme, idx) in result.summary.key_themes" :key="`theme-${idx}`" class="theme-card">
-            <h3>📌 {{ theme.theme }}</h3>
+            <div class="theme-header">
+              <h3>📌 {{ theme.theme }}</h3>
+              <div v-if="isHallucination(theme.finding)" class="inline-warning">⚠️ Unverified</div>
+            </div>
             <p>{{ theme.finding }}</p>
             <div class="sources">
-              <a v-for="(source, sidx) in theme.sources" :key="`src-${sidx}`" :href="source.url" target="_blank" class="source-badge">
-                🔗 Source
+              <a v-for="(s, si) in theme.sources" :key="si" :href="s.url" target="_blank" class="source-badge" :title="s.excerpt">
+                🔗 {{ sourceDomain(s.url) }}
               </a>
-            </div>
-            <!-- Check if this finding is flagged as hallucination -->
-            <div v-if="isHallucination(theme.finding)" class="warning-block">
-              ⚠️ Judge flagged this as unverified. See hallucinations below.
             </div>
           </div>
         </section>
@@ -113,53 +140,43 @@
         <!-- Competitor Activity -->
         <section class="result-section">
           <h2>Competitor Activity</h2>
-          <div v-if="result.summary.competitor_activities.length === 0" class="empty-state">
-            No competitor activities identified.
-          </div>
+          <div v-if="result.summary.competitor_activities.length === 0" class="empty-state">No activities identified.</div>
           <div class="competitor-grid">
-            <div v-for="(activity, idx) in result.summary.competitor_activities" :key="`comp-${idx}`" class="competitor-card">
-              <h3>{{ activity.competitor }}</h3>
-              <p>{{ activity.activity }}</p>
+            <div v-for="(a, idx) in result.summary.competitor_activities" :key="`comp-${idx}`" class="competitor-card">
+              <h3>{{ a.competitor }}</h3>
+              <p>{{ a.activity }}</p>
               <div class="sources">
-                <a v-for="(source, sidx) in activity.sources" :key="`csrc-${sidx}`" :href="source.url" target="_blank" class="source-badge">
-                  🔗 Source
+                <a v-for="(s, si) in a.sources" :key="si" :href="s.url" target="_blank" class="source-badge" :title="s.excerpt">
+                  🔗 {{ sourceDomain(s.url) }}
                 </a>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- Hallucinations (if any) -->
+        <!-- Fact Check -->
         <section v-if="result.verdicts.length > 0" class="result-section">
-          <h2>Fact Check Results</h2>
+          <h2>Fact Check</h2>
           <div class="verdicts-list">
-            <div v-for="(verdict, idx) in result.verdicts" :key="`verdict-${idx}`" class="verdict-item">
-              <div v-if="!verdict.supported" class="verdict-unsupported">
-                <h4>❌ Unverified Claim</h4>
-                <p><strong>Claim:</strong> {{ verdict.claim }}</p>
-                <p><strong>Judge's reasoning:</strong> {{ verdict.explanation }}</p>
-                <p><strong>Source:</strong> <a :href="verdict.source_url" target="_blank">{{ verdict.source_url }}</a></p>
-                <p><strong>Confidence:</strong> {{ (verdict.confidence * 100).toFixed(0) }}%</p>
+            <div v-for="(v, idx) in result.verdicts" :key="`v-${idx}`" class="verdict-item"
+              :class="v.supported ? 'supported' : 'unsupported'">
+              <div class="verdict-row">
+                <span>{{ v.supported ? '✅' : '❌' }}</span>
+                <span class="verdict-claim">{{ v.claim }}</span>
+                <span class="verdict-conf">{{ (v.confidence * 100).toFixed(0) }}%</span>
               </div>
-              <div v-else class="verdict-supported">
-                <p>✅ <strong>{{ verdict.claim }}</strong> — verified with {{ (verdict.confidence * 100).toFixed(0) }}% confidence</p>
-              </div>
+              <p v-if="!v.supported" class="verdict-explanation">{{ v.explanation }}</p>
+              <a v-if="v.source_url" :href="v.source_url" target="_blank" class="source-badge verdict-source">
+                🔗 {{ sourceDomain(v.source_url) }}
+              </a>
             </div>
           </div>
         </section>
 
-        <!-- Run Details -->
-        <section class="result-section">
-          <div class="run-details">
-            <p><strong>URLs processed:</strong> {{ input.urls.split('\n').filter(u => u.trim()).length }}</p>
-            <p><strong>Run duration:</strong> {{ result.run_duration_seconds.toFixed(1) }}s</p>
-            <p><strong>Generated at:</strong> {{ new Date(result.summary.generated_at).toLocaleString() }}</p>
-          </div>
-        </section>
-
-        <button @click="resetForm" class="btn-primary">Start New Research</button>
+        <button @click="resetForm" class="btn-secondary">New Research</button>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -167,40 +184,46 @@
 import { ref, computed } from "vue";
 import * as api from "../api";
 
+const tabs = ["input", "progress", "results"] as const;
 const activeTab = ref<"input" | "progress" | "results">("input");
 const isRunning = ref(false);
 const error = ref("");
-const progressLog = ref<Array<{ icon: string; text: string }>>([]);
+const progressLog = ref<Array<{ icon: string; text: string; type: string }>>([]);
 const result = ref<api.PipelineResult | null>(null);
+const urlStatuses = ref<Array<{ url: string; ok: boolean | null; error?: string }>>([]);
+let activeEventSource: EventSource | null = null;
 
-const input = ref({
-  competitors: "",
-  urls: "",
-});
+const input = ref({ competitors: "", topics: "", urls: "" });
+
+const parsedCompetitors = computed(() =>
+  input.value.competitors.split("\n").map(s => s.trim()).filter(Boolean)
+);
+const parsedTopics = computed(() =>
+  input.value.topics.split("\n").map(s => s.trim()).filter(Boolean)
+);
+const parsedUrls = computed(() =>
+  input.value.urls.split("\n").map(s => s.trim()).filter(Boolean)
+);
+const totalClaims = computed(() =>
+  result.value ? result.value.summary.key_themes.length + result.value.summary.competitor_activities.length : 0
+);
+const verifiedCount = computed(() =>
+  result.value ? totalClaims.value - result.value.hallucination_count : 0
+);
 
 function validateInput(): boolean {
-  const competitors = input.value.competitors
-    .split(",")
-    .map((c) => c.trim())
-    .filter((c) => c);
-  const urls = input.value.urls
-    .split("\n")
-    .map((u) => u.trim())
-    .filter((u) => u);
-
-  if (competitors.length === 0) {
-    error.value = "Please enter at least one competitor or topic.";
+  if (parsedCompetitors.value.length === 0) {
+    error.value = "Enter at least one competitor.";
     return false;
   }
-  if (urls.length === 0) {
-    error.value = "Please enter at least one URL.";
+  if (parsedUrls.value.length === 0) {
+    error.value = "Enter at least one URL.";
     return false;
   }
-  if (urls.length > 5) {
+  if (parsedUrls.value.length > 5) {
     error.value = "Maximum 5 URLs allowed.";
     return false;
   }
-
   error.value = "";
   return true;
 }
@@ -208,74 +231,68 @@ function validateInput(): boolean {
 function submitResearch(): void {
   if (!validateInput()) return;
 
-  const competitors = input.value.competitors
-    .split(",")
-    .map((c) => c.trim())
-    .filter((c) => c);
-  const urls = input.value.urls
-    .split("\n")
-    .map((u) => u.trim())
-    .filter((u) => u);
-  const topics = competitors; // For now, use competitors as topics
+  if (activeEventSource) {
+    activeEventSource.close();
+    activeEventSource = null;
+  }
 
   isRunning.value = true;
+  result.value = null;
   progressLog.value = [];
+  // Pre-populate URL statuses as pending
+  urlStatuses.value = parsedUrls.value.map(url => ({ url, ok: null }));
   activeTab.value = "progress";
 
-  const eventSource = api.streamResearch({ competitors, topics, urls });
+  const topics = parsedTopics.value.length > 0 ? parsedTopics.value : parsedCompetitors.value;
+  const eventSource = api.streamResearch({
+    competitors: parsedCompetitors.value,
+    topics,
+    urls: parsedUrls.value,
+  });
+  activeEventSource = eventSource;
 
-  // Listen for progress messages (default SSE event)
   eventSource.onmessage = (event) => {
-    console.log("Received message event:", event.data);
     try {
       const data = JSON.parse(event.data);
-      progressLog.value.push({
-        icon: getIcon(data.stage),
-        text: data.message,
-      });
+
+      // Update URL status if this event carries one
+      if (data.url_status) {
+        const idx = urlStatuses.value.findIndex(s => s.url === data.url_status.url);
+        if (idx !== -1) {
+          urlStatuses.value[idx] = {
+            url: data.url_status.url,
+            ok: data.url_status.ok,
+            error: data.url_status.error,
+          };
+        }
+      }
+
+      if (data.stage === "done") {
+        isRunning.value = false;
+        result.value = data.result;
+        progressLog.value.push({ icon: "✅", text: "Analysis complete!", type: "success" });
+        eventSource.close();
+        activeEventSource = null;
+      } else if (data.stage === "error") {
+        isRunning.value = false;
+        progressLog.value.push({ icon: "❌", text: data.message, type: "error" });
+        eventSource.close();
+        activeEventSource = null;
+      } else if (!data.url_status) {
+        // Only push non-URL-status progress messages to the log
+        progressLog.value.push({ icon: getIcon(data.stage), text: data.message, type: "info" });
+      }
     } catch (e) {
-      console.error("Failed to parse message:", e);
+      console.error("Failed to parse SSE message:", event.data, e);
     }
   };
 
-  // Listen for specific "result" event type
-  eventSource.addEventListener("result", (event: Event) => {
-    console.log("Received result event:", (event as MessageEvent).data);
-    isRunning.value = false;
-    try {
-      result.value = JSON.parse((event as MessageEvent).data);
-      activeTab.value = "results";
-      progressLog.value.push({
-        icon: "✅",
-        text: "Analysis complete!",
-      });
-    } catch (e) {
-      console.error("Failed to parse result:", e);
-      error.value = "Failed to parse results.";
-    }
-    eventSource.close();
-  });
-
-  // Listen for errors
-  eventSource.addEventListener("error", (event: Event) => {
-    console.log("Received error event:", (event as MessageEvent).data);
-    isRunning.value = false;
-    progressLog.value.push({
-      icon: "❌",
-      text: "Error: " + ((event as MessageEvent).data || "Connection failed"),
-    });
-    eventSource.close();
-  });
-
-  // Fallback error handler
   eventSource.onerror = () => {
-    console.error("EventSource error (onerror handler)");
-    if (eventSource.readyState === EventSource.CLOSED) {
+    eventSource.close();
+    activeEventSource = null;
+    if (!result.value && isRunning.value) {
       isRunning.value = false;
-      progressLog.value.push({
-        icon: "❌",
-        text: "Connection closed unexpectedly",
-      });
+      progressLog.value.push({ icon: "❌", text: "Connection closed unexpectedly.", type: "error" });
     }
   };
 }
@@ -283,7 +300,6 @@ function submitResearch(): void {
 function getIcon(stage: string): string {
   const icons: Record<string, string> = {
     scraping: "🔍",
-    researching: "🤖",
     summarizing: "📝",
     judging: "⚖️",
     done: "✅",
@@ -291,88 +307,68 @@ function getIcon(stage: string): string {
   return icons[stage] || "⏳";
 }
 
-function isHallucination(claim: string): boolean {
+function isHallucination(finding: string): boolean {
   if (!result.value) return false;
-  return result.value.verdicts.some(
-    (v) => v.claim.includes(claim.substring(0, 50)) && !v.supported && v.confidence > 0.7
-  );
+  return result.value.verdicts.some(v => !v.supported && v.confidence > 0.7 &&
+    v.claim.includes(finding.substring(0, 40)));
+}
+
+function sourceDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace("www.", "");
+  } catch {
+    return url;
+  }
 }
 
 function resetForm(): void {
-  input.value = { competitors: "", urls: "" };
+  input.value = { competitors: "", topics: "", urls: "" };
   result.value = null;
   progressLog.value = [];
+  urlStatuses.value = [];
   activeTab.value = "input";
 }
 </script>
 
 <style scoped>
-/* Tabs */
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  border-bottom: 1px solid var(--color-border);
-  margin-bottom: 1.5rem;
-}
-
-.tab-button {
-  background: none;
-  border: none;
-  border-bottom: 3px solid transparent;
-  padding: 0.75rem 1.25rem;
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  transition: all 0.15s;
-}
-
-.tab-button:hover:not(:disabled) {
-  color: var(--color-primary);
-}
-
-.tab-button.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-}
-
-.tab-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.tab-content {
-  animation: fadeIn 0.2s;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Form */
-.form-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
+/* Form layout */
+.research-form {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
-.form-section {
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 700px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
+.form-col {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .form-label {
   font-weight: 600;
   font-size: 0.9rem;
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .form-input {
@@ -381,33 +377,96 @@ function resetForm(): void {
   padding: 0.75rem;
   font-family: var(--font);
   font-size: 0.9rem;
-  min-height: 100px;
   resize: vertical;
+  min-height: 80px;
 }
+
+.form-input.tall { min-height: 130px; }
 
 .form-input:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.hints {
-  background: #f0f4f8;
-  border-radius: var(--radius);
-  padding: 1rem;
+.url-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.url-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f0f4ff;
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.url-index {
+  background: var(--color-primary);
+  color: white;
+  border-radius: 50%;
+  width: 1.2rem;
+  height: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.url-text {
+  word-break: break-all;
+  color: var(--color-text-muted);
+}
+
+.form-footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-run {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+}
+
+.form-meta {
   font-size: 0.85rem;
   color: var(--color-text-muted);
 }
 
-.hints ul {
-  margin-top: 0.5rem;
-  list-style: none;
-  padding-left: 1rem;
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 2px solid var(--color-border);
+  margin-bottom: 1.5rem;
 }
 
-.hints li {
-  margin: 0.25rem 0;
-  word-break: break-all;
+.tab-button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 0.6rem 1.25rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  transition: all 0.15s;
 }
+
+.tab-button:hover:not(:disabled) { color: var(--color-primary); }
+.tab-button.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.tab-button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tab-content { animation: fadeIn 0.15s; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* Progress */
 .progress-card {
@@ -415,43 +474,73 @@ function resetForm(): void {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.progress-header h2 { margin: 0; }
+
+.spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.url-status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.url-status-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.url-status-item.pending { opacity: 0.5; }
+.url-status-text { word-break: break-all; flex: 1; }
+.url-status-error { color: var(--color-danger); font-size: 0.8rem; }
 
 .progress-log {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: 0.6rem;
   font-family: monospace;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 .progress-item {
   display: flex;
-  align-items: center;
   gap: 0.75rem;
+  align-items: flex-start;
 }
 
-.progress-icon {
-  font-size: 1.25rem;
-}
-
-.progress-text {
-  color: var(--color-text-muted);
-}
+.progress-item.error { color: var(--color-danger); }
+.progress-item.success { color: var(--color-success); }
+.progress-item.info { color: var(--color-text-muted); }
+.progress-icon { flex-shrink: 0; }
 
 /* Results */
-.results-container {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
+.results-container { display: flex; flex-direction: column; gap: 2rem; }
 
-.result-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
+.result-section { display: flex; flex-direction: column; gap: 1rem; }
 
 .summary-card {
   background: var(--color-surface);
@@ -460,39 +549,39 @@ function resetForm(): void {
   padding: 1.5rem;
 }
 
-.summary-card h2 {
-  margin-bottom: 1rem;
-}
-
-.summary-card p {
-  line-height: 1.8;
-  margin-bottom: 1rem;
-}
-
-.trust-badge {
+.summary-header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.summary-header h2 { margin: 0; }
+
+.summary-card p { line-height: 1.8; }
+
+.run-meta {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 .badge {
   display: inline-block;
-  padding: 0.5rem 1rem;
+  padding: 0.35rem 0.85rem;
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
-.badge-success {
-  background: #dcfce7;
-  color: var(--color-success);
-}
+.badge-success { background: #dcfce7; color: var(--color-success); }
+.badge-warning { background: #fef9c3; color: var(--color-warning); }
 
-.badge-warning {
-  background: #fef9c3;
-  color: var(--color-warning);
-}
-
-/* Theme Cards */
 .theme-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -500,20 +589,29 @@ function resetForm(): void {
   padding: 1.25rem;
 }
 
-.theme-card h3 {
-  margin-bottom: 0.75rem;
+.theme-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
 }
 
-.sources {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  flex-wrap: wrap;
+.theme-header h3 { margin: 0; }
+
+.inline-warning {
+  font-size: 0.8rem;
+  background: #fef9c3;
+  color: var(--color-warning);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-weight: 600;
 }
+
+.sources { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
 
 .source-badge {
   display: inline-block;
-  padding: 0.375rem 0.75rem;
+  padding: 0.3rem 0.65rem;
   background: #dbeafe;
   color: var(--color-primary);
   border-radius: 4px;
@@ -523,14 +621,11 @@ function resetForm(): void {
   transition: background 0.15s;
 }
 
-.source-badge:hover {
-  background: #bfdbfe;
-}
+.source-badge:hover { background: #bfdbfe; }
 
-/* Competitor Grid */
 .competitor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
 
@@ -541,71 +636,55 @@ function resetForm(): void {
   padding: 1rem;
 }
 
-.competitor-card h3 {
-  margin-bottom: 0.5rem;
-  font-size: 1rem;
-}
+.competitor-card h3 { margin-bottom: 0.5rem; font-size: 1rem; }
+.competitor-card p { font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: 0.75rem; }
 
-.competitor-card p {
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  margin-bottom: 0.75rem;
-}
-
-/* Verdicts */
-.verdicts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
+.verdicts-list { display: flex; flex-direction: column; gap: 0.75rem; }
 
 .verdict-item {
   background: var(--color-surface);
-  border-radius: var(--radius);
-  padding: 1rem;
   border-left: 4px solid var(--color-border);
-}
-
-.verdict-unsupported {
-  border-left-color: var(--color-danger);
-}
-
-.verdict-unsupported h4 {
-  color: var(--color-danger);
-  margin-bottom: 0.5rem;
-}
-
-.verdict-supported {
-  border-left-color: var(--color-success);
-  color: var(--color-success);
-}
-
-.verdict-item p {
-  font-size: 0.9rem;
-  margin: 0.5rem 0;
-}
-
-.verdict-item a {
-  color: var(--color-primary);
-  text-decoration: none;
-  word-break: break-all;
-}
-
-.verdict-item a:hover {
-  text-decoration: underline;
-}
-
-/* Run Details */
-.run-details {
-  background: #f8fafc;
   border-radius: var(--radius);
-  padding: 1rem;
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
+  padding: 0.85rem 1rem;
 }
 
-.run-details p {
-  margin: 0.5rem 0;
+.verdict-item.supported { border-left-color: var(--color-success); }
+.verdict-item.unsupported { border-left-color: var(--color-danger); }
+
+.verdict-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.verdict-claim { flex: 1; }
+.verdict-conf { font-size: 0.8rem; color: var(--color-text-muted); white-space: nowrap; }
+.verdict-explanation { font-size: 0.85rem; color: var(--color-danger); margin: 0.4rem 0 0; }
+.verdict-source { display: inline-block; margin-top: 0.5rem; }
+
+.btn-secondary {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.65rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: all 0.15s;
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.error-text {
+  color: var(--color-danger);
+  font-size: 0.9rem;
+  padding: 0.65rem 0.85rem;
+  background: #fee2e2;
+  border-radius: 4px;
 }
 
 .empty-state {
@@ -615,23 +694,5 @@ function resetForm(): void {
   padding: 2rem;
   text-align: center;
   color: var(--color-text-muted);
-}
-
-.error-text {
-  color: var(--color-danger);
-  font-size: 0.9rem;
-  padding: 0.75rem;
-  background: #fee2e2;
-  border-radius: 4px;
-}
-
-.warning-block {
-  background: var(--color-warning-bg);
-  border: 1px solid var(--color-warning-border);
-  border-radius: 4px;
-  padding: 0.75rem;
-  margin-top: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--color-warning);
 }
 </style>

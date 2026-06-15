@@ -2,10 +2,12 @@
   <header class="navbar">
     <div class="navbar-brand">Market Intel Assistant</div>
     <nav class="navbar-links">
-      <RouterLink to="/">New Research</RouterLink>
-      <RouterLink to="/history">History</RouterLink>
-      <RouterLink v-if="!isLoggedIn" to="/login">Login</RouterLink>
-      <button v-else class="btn-link" @click="logout">Logout</button>
+      <template v-if="isLoggedIn">
+        <RouterLink to="/">New Research</RouterLink>
+        <RouterLink to="/history">History</RouterLink>
+        <button class="btn-link" @click="logout">Logout</button>
+      </template>
+      <RouterLink v-else to="/login">Login</RouterLink>
     </nav>
   </header>
 
@@ -15,15 +17,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { logout } from "./api";
 
 const router = useRouter();
+const isLoggedIn = ref(!!localStorage.getItem("token"));
 
-const isLoggedIn = computed(() => !!localStorage.getItem("token"));
-
-function logout(): void {
-  localStorage.removeItem("token");
-  router.push("/login");
-}
+// Keep isLoggedIn in sync whenever the route changes (covers login + logout)
+router.afterEach(() => {
+  isLoggedIn.value = !!localStorage.getItem("token");
+});
 </script>

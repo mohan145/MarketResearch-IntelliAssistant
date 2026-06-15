@@ -14,12 +14,16 @@ const router = createRouter({
   routes,
 });
 
-// Auth guard — disabled for Phase 0 testing, will be enforced in Phase 4
-// router.beforeEach((to) => {
-//   const token = localStorage.getItem("token");
-//   if (to.meta.requiresAuth && !token) {
-//     return { path: "/login" };
-//   }
-// });
+// Auth guard — all requiresAuth routes redirect to /login if no token
+router.beforeEach((to) => {
+  const token = localStorage.getItem("token");
+  if (to.meta.requiresAuth && !token) {
+    return { path: "/login" };
+  }
+  // Already logged in, don't show login page again
+  if (to.path === "/login" && token) {
+    return { path: "/" };
+  }
+});
 
 export default router;
