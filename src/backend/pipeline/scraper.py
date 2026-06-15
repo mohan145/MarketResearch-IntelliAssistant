@@ -62,7 +62,10 @@ def fetch_url(url: str, timeout: int = 15) -> FetchResult:
     try:
         # httpx.HTTPTransport(retries=3) handles connection failures, timeouts
         transport = httpx.HTTPTransport(retries=3)
-        client = httpx.Client(transport=transport, timeout=timeout)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        client = httpx.Client(transport=transport, timeout=timeout, headers=headers)
 
         response = client.get(url, follow_redirects=True)
         response.raise_for_status()
@@ -152,8 +155,30 @@ def extract_content(html: str, url: str) -> ExtractedContent:
         except Exception:
             result = ""
 
-    # Metadata extraction
-    metadata = trafilatura.metadata.extract(html) if html else {}
+    # Extract metadata using trafilatura.extract_with_metadata (trafilatura 2.1.0+)
+    title = None
+    author = None
+    publish_date = None
+
+    if html:
+        try:
+            text_with_meta = trafilatura.extract_with_metadata(
+                html,
+                include_comments=False,
+                include_tables=True,
+                favor_recall=True,
+                output_format="python",
+            )
+            # extract_with_metadata returns a dict with 'text' and 'metadata'
+            if isinstance(text_with_meta, dict):
+                result = text_with_meta.get("text", result)
+                meta = text_with_meta.get("metadata", {})
+                title = meta.get("title")
+                author = meta.get("author")
+                publish_date = meta.get("date")
+        except Exception:
+            # Fallback to text-only extraction already attempted above
+            pass
 
     text = result.strip() if result else ""
     word_count = len(text.split())
@@ -166,9 +191,9 @@ def extract_content(html: str, url: str) -> ExtractedContent:
 
     return ExtractedContent(
         url=url,
-        title=metadata.get("title") if metadata else None,
-        author=metadata.get("author") if metadata else None,
-        publish_date=metadata.get("date") if metadata else None,
+        title=title if title else None,
+        author=author if author else None,
+        publish_date=publish_date if publish_date else None,
         text=text,
         word_count=word_count,
     )

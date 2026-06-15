@@ -68,19 +68,43 @@ async def run_pipeline_async(
         scrape_results = scrape_urls(urls)
         successful = [r for r in scrape_results if r.is_success()]
 
+        # Emit per-URL result so frontend can show individual status
+        for r in scrape_results:
+            if r.is_success():
+                yield {
+                    "stage": "scraping",
+                    "message": f"Fetched {r.url} ({r.extracted_content.word_count} words)",
+                    "progress": 10,
+                    "url_status": {"url": r.url, "ok": True},
+                }
+            else:
+                yield {
+                    "stage": "scraping",
+                    "message": f"Failed {r.url}: {r.error}",
+                    "progress": 10,
+                    "url_status": {"url": r.url, "ok": False, "error": r.error},
+                }
+
         if not successful:
             yield {
                 "stage": "error",
-                "message": "Failed to scrape any URLs",
+                "message": "Failed to scrape any URLs. Check that the URLs are publicly accessible.",
                 "progress": 0,
             }
             return
 
-        yield {
-            "stage": "scraping",
-            "message": f"✓ Scraped {len(successful)}/{len(urls)} URLs successfully",
-            "progress": 20,
-        }
+        if len(successful) < len(urls):
+            yield {
+                "stage": "scraping",
+                "message": f"Proceeding with {len(successful)}/{len(urls)} URLs — {len(urls) - len(successful)} failed",
+                "progress": 20,
+            }
+        else:
+            yield {
+                "stage": "scraping",
+                "message": f"All {len(successful)} URLs fetched successfully",
+                "progress": 20,
+            }
 
         # Extract content from successful scrapes
         content = [r.extracted_content for r in successful if r.extracted_content]
@@ -97,7 +121,7 @@ async def run_pipeline_async(
 
         yield {
             "stage": "summarizing",
-            "message": f"✓ Generated summary with {len(summary.key_themes)} themes",
+            "message": f"Generated summary with {len(summary.key_themes)} themes",
             "progress": 60,
         }
 
@@ -112,11 +136,13 @@ async def run_pipeline_async(
         source_texts = {r.url: r.extracted_content.text for r in successful}
 
         verdicts = verify_summary(summary, source_texts, llm)
-        hallucination_count = sum(1 for v in verdicts if not v.supported and v.confidence > 0.7)
+        from src.backend.config import get_settings
+        threshold = get_settings().pipeline_hallucination_threshold
+        hallucination_count = sum(1 for v in verdicts if not v.supported and v.confidence > threshold)
 
         yield {
             "stage": "judging",
-            "message": f"✓ Verified {len(verdicts)} claims ({hallucination_count} issues found)",
+            "message": f"Verified {len(verdicts)} claims ({hallucination_count} issues found)",
             "progress": 90,
         }
 
@@ -134,7 +160,7 @@ async def run_pipeline_async(
 
         yield {
             "stage": "done",
-            "message": "✓ Analysis complete!",
+            "message": "Analysis complete!",
             "progress": 100,
             "result": result,
         }

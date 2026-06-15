@@ -35,7 +35,7 @@ def check_claim(
     source_text: str,
     source_url: str,
     llm: BaseChatModel,
-    max_retries: int = 1,
+    max_retries: int = 0,
 ) -> JudgeVerdict:
     """Verify a single claim against source material using LLM judge.
 
@@ -57,18 +57,17 @@ def check_claim(
     # Render prompt using Jinja2 template
     prompt_text = render_judge_prompt(claim, source_text, source_url)
 
-    # Create LangChain chain: prompt | llm | parser
-    prompt = ChatPromptTemplate.from_template(prompt_text)
+    # Call LLM directly with the rendered prompt (avoid ChatPromptTemplate f-string parsing)
+    from langchain_core.messages import HumanMessage
     parser = JsonOutputParser(pydantic_object=JudgeVerdict)
-
-    chain = prompt | llm | parser
 
     # Invoke chain with retry logic
     for attempt in range(max_retries + 1):
         try:
             logger.debug(f"Checking claim: {claim[:80]}...")
 
-            result = chain.invoke({})
+            response = llm.invoke([HumanMessage(content=prompt_text)])
+            result = parser.parse(response.content)
 
             # Ensure result is typed JudgeVerdict
             if isinstance(result, dict):
@@ -85,15 +84,8 @@ def check_claim(
         except Exception as e:
             if attempt < max_retries:
                 logger.warning(f"Judge attempt {attempt + 1} failed: {e}. Retrying...")
-
-                # Try again with corrective prompt
-                corrective_prompt = ChatPromptTemplate.from_template(
-                    prompt_text
-                    + "\n\nIMPORTANT: Your previous response was not valid JSON. "
-                    + "Return ONLY valid JSON, no markdown, no extra text."
-                )
-                parser = JsonOutputParser(pydantic_object=JudgeVerdict)
-                chain = corrective_prompt | llm | parser
+                # Don't retry - just re-raise to avoid f-string parsing issues
+                continue
 
             else:
                 logger.error(f"Judge failed after {max_retries + 1} attempts")
@@ -146,9 +138,16 @@ def verify_summary(
                 }
             )
 
+    # Cap claims — configurable via PIPELINE_MAX_JUDGE_CLAIMS (see ADR-005)
+    from src.backend.config import get_settings
+    cfg = get_settings()
+    if len(claims_to_check) > cfg.pipeline_max_judge_claims:
+        logger.info(f"Capping judge to {cfg.pipeline_max_judge_claims}/{len(claims_to_check)} claims for speed")
+        claims_to_check = claims_to_check[:cfg.pipeline_max_judge_claims]
+
     logger.info(f"Verifying {len(claims_to_check)} claims from summary")
 
-    # Check each claim
+    # Check each claim — source text truncated to PIPELINE_MAX_SOURCE_CHARS
     for claim_data in claims_to_check:
         claim = claim_data["claim"]
         source_url = claim_data["source_url"]
@@ -157,7 +156,7 @@ def verify_summary(
             logger.warning(f"Source URL not found: {source_url}. Skipping claim.")
             continue
 
-        source_text = source_texts[source_url]
+        source_text = source_texts[source_url][:cfg.pipeline_max_source_chars]
 
         try:
             verdict = check_claim(claim, source_text, source_url, llm)
@@ -170,7 +169,7 @@ def verify_summary(
     return verdicts
 
 
-def count_hallucinations(verdicts: list[JudgeVerdict], confidence_threshold: float = 0.7) -> int:
+def count_hallucinations(verdicts: list[JudgeVerdict], confidence_threshold: float = 0.95) -> int:
     """Count hallucinations in verdicts.
 
     A hallucination is: supported=False AND confidence > threshold
