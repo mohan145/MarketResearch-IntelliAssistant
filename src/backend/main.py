@@ -22,11 +22,13 @@ app = FastAPI(
 )
 
 app.add_middleware(
+
     CORSMiddleware,
     allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    allow_origin_regex=r"http://localhost.*",
 )
 
 
@@ -46,10 +48,7 @@ async def health() -> dict[str, str]:
 
 
 # Register routers
-from src.backend.api import research
+from src.backend.api import auth, research
 
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(research.router, prefix="/api/research", tags=["research"])
-
-# TODO: Phase 4 - Auth endpoints
-# from src.backend.api import auth
-# app.include_router(auth.router, prefix="/auth", tags=["auth"])

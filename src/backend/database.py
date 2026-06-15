@@ -35,8 +35,25 @@ class Base(DeclarativeBase):
 
 
 def init_db() -> None:
-    """Create all tables. Safe to call multiple times — skips existing tables."""
+    """Create all tables and seed demo user if not present."""
+    import logging
+    from src.backend.config import get_settings
+
     Base.metadata.create_all(bind=engine)
+
+    # Seed demo user (see ADR-004)
+    cfg = get_settings()
+    db = SessionLocal()
+    try:
+        from src.backend.models import User
+        exists = db.query(User).filter(User.email == cfg.demo_email).first()
+        if not exists:
+            from src.backend.api.auth import hash_password
+            db.add(User(email=cfg.demo_email, hashed_password=hash_password(cfg.demo_password)))
+            db.commit()
+            logging.getLogger(__name__).info(f"Demo user seeded: {cfg.demo_email}")
+    finally:
+        db.close()
 
 
 def get_session() -> Generator[Session, None, None]:
