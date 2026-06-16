@@ -37,6 +37,8 @@ def render_summarize_prompt(
     competitors: list[str],
     topics: list[str],
     articles: list[dict],
+    max_themes: int = 2,
+    max_activities: int = 2,
 ) -> str:
     """Render the summarization prompt.
 
@@ -44,6 +46,8 @@ def render_summarize_prompt(
         competitors: List of competitor names
         topics: List of topics to analyze
         articles: List of ExtractedContent (dict-like with url, title, text, etc.)
+        max_themes: Maximum number of themes to request (see ADR-005)
+        max_activities: Maximum number of competitor activities to request
 
     Returns:
         Rendered prompt string ready for LLM
@@ -53,6 +57,8 @@ def render_summarize_prompt(
         competitors=competitors,
         topics=topics,
         articles=articles,
+        max_themes=max_themes,
+        max_activities=max_activities,
     )
 
 
