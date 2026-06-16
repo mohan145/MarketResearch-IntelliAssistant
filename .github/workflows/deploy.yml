@@ -88,7 +88,6 @@ jobs:
               PIPELINE_MAX_COMPETITOR_ACTIVITIES=2 \
               PIPELINE_HALLUCINATION_THRESHOLD=0.8 \
               GOOGLE_API_KEY=secretref:google-api-key \
-              ANTHROPIC_API_KEY=secretref:anthropic-api-key \
               SECRET_KEY=secretref:secret-key \
               DEMO_PASSWORD=secretref:demo-password
 
