@@ -55,7 +55,7 @@ def summarize(
     competitors: list[str],
     topics: list[str],
     llm: BaseChatModel,
-    max_retries: int = 1,
+    max_retries: int = 0,
 ) -> MarketSummary:
     """Summarize market research from extracted articles.
 
@@ -78,27 +78,32 @@ def summarize(
     if not content:
         raise ValueError("No content provided for summarization")
 
-    # Convert ExtractedContent to dicts for template rendering
+    from src.backend.config import get_settings
+    cfg = get_settings()
+
+    # Truncate article text — keeps prompt size bounded for speed (see ADR-005)
     articles = [
         {
             "url": c.url,
             "title": c.title,
             "author": c.author,
             "publish_date": c.publish_date,
-            "text": c.text,
+            "text": c.text[:cfg.pipeline_max_article_chars],
         }
         for c in content
     ]
 
     # Render prompt using Jinja2 template
-    prompt_text = render_summarize_prompt(competitors, topics, articles)
+    prompt_text = render_summarize_prompt(
+        competitors, topics, articles,
+        max_themes=cfg.pipeline_max_themes,
+        max_activities=cfg.pipeline_max_competitor_activities,
+    )
     logger.debug(f"Rendered prompt ({len(prompt_text)} chars)")
 
-    # Create LangChain chain: prompt | llm | parser
-    prompt = ChatPromptTemplate.from_template(prompt_text)
+    # Create LangChain chain directly with HumanMessage (avoid f-string parsing issues)
+    from langchain_core.messages import HumanMessage
     parser = JsonOutputParser(pydantic_object=MarketSummary)
-
-    chain = prompt | llm | parser
 
     # Invoke chain with retry logic
     for attempt in range(max_retries + 1):
@@ -107,8 +112,9 @@ def summarize(
                 f"Summarizing {len(articles)} articles about {', '.join(competitors)}"
             )
 
-            # Invoke with empty input dict (prompt is already templated)
-            result = chain.invoke({})
+            # Call LLM directly with the rendered prompt
+            response = llm.invoke([HumanMessage(content=prompt_text)])
+            result = parser.parse(response.content)
 
             # Ensure datetime is set
             if isinstance(result, dict):
@@ -130,15 +136,8 @@ def summarize(
                 logger.warning(
                     f"Summarization attempt {attempt + 1} failed: {e}. Retrying..."
                 )
-
-                # Try again with corrective prompt appended
-                corrective_prompt = ChatPromptTemplate.from_template(
-                    prompt_text
-                    + "\n\nIMPORTANT: Your previous response was not valid JSON. "
-                    + "Return ONLY valid JSON, no markdown, no extra text."
-                )
-                parser = JsonOutputParser(pydantic_object=MarketSummary)
-                chain = corrective_prompt | llm | parser
+                # Don't retry - just re-raise to avoid f-string parsing issues
+                continue
 
             else:
                 logger.error(f"Summarization failed after {max_retries + 1} attempts")

@@ -22,12 +22,16 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     llm_provider: Literal["google", "anthropic", "openai"] = "google"
-    llm_model: str = "gemini-1.5-flash"
+    llm_model: str = ""  # Must be set in .env — e.g. gemini-2.5-flash-lite or claude-haiku-4-5-20251001
 
     # Auth (JWT)
     secret_key: str = "change-me-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440  # 24 hours
+
+    # Demo user (seeded on startup — see ADR-004)
+    demo_email: str = "demo@example.com"
+    demo_password: str = "demo1234"
 
     # Database
     # Local:      sqlite:///./data/market_research.db
@@ -38,6 +42,14 @@ class Settings(BaseSettings):
     # Local:      http://localhost:5173
     # Production: https://<your-static-web-app>.azurestaticapps.net
     allowed_origins: str = "http://localhost:5173"
+
+    # Pipeline performance tuning (see ADR-005)
+    pipeline_max_article_chars: int = 3000   # Truncate article text before summarizer
+    pipeline_max_source_chars: int = 2000    # Truncate source text sent to judge
+    pipeline_max_judge_claims: int = 3       # Max sequential judge LLM calls per run
+    pipeline_max_themes: int = 2             # Max themes requested from summarizer
+    pipeline_max_competitor_activities: int = 2  # Max competitor activities requested
+    pipeline_hallucination_threshold: float = 0.95  # Min confidence to flag as hallucination
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

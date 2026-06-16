@@ -17,13 +17,14 @@ DATE: {{ article.publish_date or 'N/A' }}
 
 INSTRUCTIONS:
 1. Read all articles carefully.
-2. Identify key themes or trends (e.g., pricing changes, product launches, partnerships).
-3. For each theme, provide a clear finding grounded in the articles.
-4. List competitor activities mentioned.
+2. Identify the top {{ max_themes }} key themes or trends only (no more than {{ max_themes }}).
+3. List the top {{ max_activities }} competitor activities only (no more than {{ max_activities }}).
+4. Keep findings concise — 1-2 sentences each.
 5. Include source URLs for every insight.
 6. Return valid JSON only (no markdown, no extra text).
 
 JSON SCHEMA:
+{% raw %}
 {
   "executive_summary": "1-2 paragraph overview of key findings",
   "key_themes": [
@@ -51,5 +52,6 @@ JSON SCHEMA:
     }
   ]
 }
+{% endraw %}
 
 RETURN VALID JSON ONLY:
