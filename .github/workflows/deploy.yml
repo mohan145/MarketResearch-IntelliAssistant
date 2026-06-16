@@ -7,7 +7,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/market-research-api
+  IMAGE_NAME: ${{ github.repository_owner }}/market-research-api
+
+# Note: github.repository_owner is always lowercase for ghcr.io compatibility
 
 jobs:
   # ── Job 1: Build & push Docker image to ghcr.io ───────────────────────────
