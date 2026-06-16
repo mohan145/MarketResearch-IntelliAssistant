@@ -1,7 +1,27 @@
 # Market Research Intelligence Assistant
 
-A web application that collects, analyzes, and summarizes market intelligence from
-multiple public sources — using an LLM pipeline with hallucination detection.
+Product and GTM teams spend hours manually tracking competitor blogs, release notes, and
+announcements across dozens of sources. This tool automates that: paste in a list of
+competitors and up to 5 public URLs, and it scrapes the content, runs it through an LLM
+pipeline to extract key themes and competitor activity, then uses a second LLM-as-a-judge
+pass to verify each claim against the original source — flagging anything that can't be
+grounded in what was actually written.
+
+---
+
+## Table of Contents
+
+- [Live URLs](#live-urls)
+- [Demo Account](#demo-account)
+- [Screenshots](#screenshots)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [How This App Was Built](#how-this-app-was-built)
+- [Local Setup](#local-setup)
+- [Design Decisions](#design-decisions)
+- [Known Limitations](#known-limitations)
+- [Production Improvements](#production-improvements)
+- [AI Tools and Models Used](#ai-tools-and-models-used)
 
 ---
 
@@ -35,15 +55,18 @@ underneath is production-compatible; extending to full multi-user auth means add
 
 **Live progress — per-URL scrape status streamed in real time**
 
-![Live progress](docs/screenshots/progress.png)
+![Live progress](docs/screenshots/progress-1.png)
+![Live progress](docs/screenshots/progress-2.png)
 
 **Report output — executive summary, trust score, key themes with source badges**
 
-![Report output](docs/screenshots/report.png)
+![Report output](docs/screenshots/result-1.png)
 
 ---
 
 ## Architecture
+
+![Architecture diagram](docs/screenshots/architecture.svg)
 
 ```
 Browser (Vue 3 SPA)
@@ -341,14 +364,63 @@ Azure File Share (~$0.02/GB — effectively free at demo scale).
 → Full rationale: [`docs/adr/ADR-006-azure-deployment.md`](docs/adr/ADR-006-azure-deployment.md)
 
 **ADR-007 — LLM Judge Design: Same Model, Confidence Threshold, Partial Scrape Success**
-I decided to reuse the same model for both summarization and judgment rather than provisioning a
-separate, more capable judge model — one API key, no extra cost, and a lite model is sufficient
-for binary claim verification against short excerpts. I set the confidence threshold at 0.8: the
-judge must be 80%+ certain a claim is unsupported before it gets flagged, which prevents false
-positives from the lower-confidence outputs of lite models. I also designed the scraper with a
-partial success model — the pipeline continues as long as at least one URL succeeds, with per-URL
-status streamed live to the frontend.
+For this demo I reused the same model (`gemini-2.5-flash-lite`) for both summarization and
+judgment — one API key, zero extra cost. This is a deliberate demo-stage constraint, not the
+recommended production approach. Ideally the judge should be a stronger, dedicated model (e.g.
+Claude Sonnet or GPT-4o): the same model that generated a potential hallucination shares its
+blind spots and is less likely to catch it. The architecture already supports this — `judge.py`
+accepts any `BaseChatModel`, so a separate judge model would require only a config addition and
+a second `get_llm()` call in the orchestrator. I set the confidence threshold at 0.8: the judge
+must be 80%+ certain a claim is unsupported before flagging it, which reduces false positives
+from lite models that express lower confidence. I also designed the scraper with a partial success
+model — the pipeline continues as long as at least one URL succeeds, with per-URL status streamed
+live to the frontend.
 → Full rationale: [`docs/adr/ADR-007-llm-judge-design.md`](docs/adr/ADR-007-llm-judge-design.md)
+
+---
+
+## Known Limitations
+
+These are deliberate trade-offs accepted for a demo-stage tool, not oversights.
+
+| Limitation | Impact | Root cause |
+|---|---|---|
+| Only top 3 claims verified by the judge | Hallucinations in claims 4+ go undetected | Judge calls capped to keep runtime under 60s (ADR-005) |
+| Same model used for summarizer and judge | The model that generated a hallucination may not catch it — they share the same blind spots | Demo cost constraint; production should use a stronger dedicated judge model such as Claude Sonnet or GPT-4o (ADR-007) |
+| Article text truncated to 3,000 chars | Insights from the tail of long articles are missed | Payload cap to reduce summarizer prompt size (ADR-005) |
+| SQLite resets on container restart | Run history lost if the container is redeployed | Azure File Share volume mount not yet wired (ADR-006) |
+| Single demo user, no self-registration | Only one account can log in | Scoped intentionally for evaluator access (ADR-004) |
+| Some URLs always return 403 | Sites like openai.com block automated access | Cloudflare/WAF bot detection; User-Agent spoofing helps but isn't foolproof (ADR-007) |
+| LLM judge calls are sequential | Each additional claim adds ~10–15s to runtime | Parallelism deferred to avoid complexity in demo phase (ADR-005) |
+| Cold start on first request | ~3–5s delay after the container has been idle | Azure Container Apps scales to zero; unavoidable on consumption tier |
+
+---
+
+## Production Improvements
+
+The following changes would be needed before this app handles real users or higher load.
+
+**Persistence and data**
+- Wire the Azure File Share volume mount to `/app/data/` in the Container App definition — prevents SQLite from resetting on restart
+- Migrate to Azure SQL Flexible Server or PostgreSQL when concurrent writes or multi-user scale is needed — only `DATABASE_URL` needs to change
+
+**Performance**
+- Refactor `verify_summary()` to `async` and use `asyncio.gather()` to run judge calls in parallel — cuts judge latency from N×15s to ~15s flat
+- Raise `PIPELINE_MAX_ARTICLE_CHARS` to 8,000 and `PIPELINE_MAX_JUDGE_CLAIMS` to 10 for more thorough analysis
+- Add Playwright/Puppeteer for JavaScript-rendered sites that trafilatura cannot extract
+
+**Hallucination detection accuracy**
+- Use a stronger, dedicated model for the judge role — e.g. Claude Sonnet or GPT-4o — while keeping the faster lite model for summarization. The judge only runs on a small number of claims (3 by default) so the cost increase is modest. The architecture already supports this: `judge.py` accepts any `BaseChatModel`, and wiring a separate judge model requires only a `JUDGE_PROVIDER` / `JUDGE_MODEL` config addition and a second `get_llm()` call in the orchestrator.
+
+**Auth and security**
+- Move JWT token from `localStorage` to an `httpOnly` cookie to prevent XSS token theft
+- Add `POST /auth/register` and remove the seeded demo user for real multi-user deployment
+- Rotate `SECRET_KEY` and `DEMO_PASSWORD` before any public-facing deployment
+
+**Reliability**
+- Add a CI lint-and-test job to the GitHub Actions workflow (ruff, black, pytest) to gate deployments
+- Add structured logging and an Azure Application Insights integration for request tracing
+- Set up an alert on the `/health` endpoint to detect cold starts or container failures
 
 ---
 

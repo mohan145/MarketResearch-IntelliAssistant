@@ -116,8 +116,32 @@ async def run_pipeline_async(
             "progress": 30,
         }
 
-        llm = get_llm_cached(llm_provider)
-        summary = summarize(content, competitors, topics, llm)
+        try:
+            llm = get_llm_cached(llm_provider)
+        except RuntimeError as e:
+            yield {
+                "stage": "error",
+                "message": f"LLM not configured: {e}",
+                "progress": 0,
+            }
+            return
+        except Exception as e:
+            yield {
+                "stage": "error",
+                "message": f"Failed to initialise LLM: {e}",
+                "progress": 0,
+            }
+            return
+
+        try:
+            summary = summarize(content, competitors, topics, llm)
+        except Exception as e:
+            yield {
+                "stage": "error",
+                "message": f"Summarization failed: {e}",
+                "progress": 0,
+            }
+            return
 
         yield {
             "stage": "summarizing",
@@ -135,7 +159,16 @@ async def run_pipeline_async(
         # Build source text dict for judge
         source_texts = {r.url: r.extracted_content.text for r in successful}
 
-        verdicts = verify_summary(summary, source_texts, llm)
+        try:
+            verdicts = verify_summary(summary, source_texts, llm)
+        except Exception as e:
+            yield {
+                "stage": "error",
+                "message": f"Hallucination check failed: {e}",
+                "progress": 0,
+            }
+            return
+
         from src.backend.config import get_settings
         threshold = get_settings().pipeline_hallucination_threshold
         hallucination_count = sum(1 for v in verdicts if not v.supported and v.confidence > threshold)

@@ -48,23 +48,41 @@ def get_current_user_from_query(
     return user
 
 
-@router.api_route("/run", methods=["GET", "POST"], response_class=EventSourceResponse)
+@router.api_route(
+    "/run",
+    methods=["GET", "POST"],
+    response_class=EventSourceResponse,
+    summary="Run market research analysis (SSE stream)",
+    responses={
+        200: {"description": "Stream of JSON events — one per pipeline stage"},
+        401: {"description": "Missing or invalid JWT token"},
+        422: {"description": "Invalid JSON in query parameters"},
+    },
+)
 async def run_research(
-    competitors: str = Query(..., description="JSON string of competitors list"),
-    topics: str = Query(..., description="JSON string of topics list"),
-    urls: str = Query(..., description="JSON string of urls list"),
-    llm_provider: str = Query(default=None, description="LLM provider (uses .env if not specified)"),
+    competitors: str = Query(..., description='JSON array of competitor names — e.g. `["OpenAI","Mistral"]`'),
+    topics: str = Query(..., description='JSON array of research topics — e.g. `["pricing","model releases"]`'),
+    urls: str = Query(..., description='JSON array of source URLs to scrape — e.g. `["https://mistral.ai/news/"]`'),
+    llm_provider: str = Query(default=None, description="Override LLM provider: `google`, `anthropic`, or `openai`. Defaults to `LLM_PROVIDER` in `.env`."),
     current_user: User = Depends(get_current_user_from_query),
     db: Session = Depends(get_session),
 ) -> EventSourceResponse:
-    """Start market research analysis with SSE progress streaming.
+    """Start a market research pipeline run and stream live progress via Server-Sent Events.
 
-    Streams progress events as the pipeline runs:
-    - scraping: fetching URLs
-    - summarizing: generating summary
-    - judging: checking for hallucinations
-    - done: complete result saved to DB
-    - error: failure with message
+    Pass the JWT as `?token=<jwt>` (EventSource cannot set Authorization headers).
+
+    **Event stream format** — each event is a JSON object on its own line:
+
+    | `stage` | Meaning |
+    |---|---|
+    | `scraping` | A URL is being fetched; includes `url` and `progress` (0–100) |
+    | `url_status` | Per-URL result — `status`: `success` or `error`, `word_count` or `error_msg` |
+    | `summarizing` | LLM generating executive summary, themes, and competitor cards |
+    | `judging` | LLM verifying claims against source text |
+    | `done` | Pipeline complete — `result` contains the full `PipelineResult` object |
+    | `error` | Unrecoverable failure — `message` describes the error |
+
+    The completed run is automatically saved to the database on a `done` event.
     """
     from src.backend.config import get_settings
     settings = get_settings()
@@ -130,13 +148,24 @@ async def run_research(
     return EventSourceResponse(event_generator())
 
 
-@router.get("/history")
+@router.get(
+    "/history",
+    summary="List past research runs",
+    responses={
+        200: {"description": "Array of past runs for the authenticated user, newest first"},
+        401: {"description": "Missing or invalid JWT token"},
+    },
+)
 async def get_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    limit: Annotated[int, Query(ge=1, le=100, description="Maximum number of runs to return (1–100)")] = 50,
 ) -> dict:
-    """Get the current user's past research runs, newest first."""
+    """Return the authenticated user's past research runs, newest first.
+
+    Each run includes the original input (topics, competitors, URLs), the full result,
+    hallucination count, and run duration in seconds.
+    """
     runs = (
         db.query(ResearchRun)
         .filter(ResearchRun.user_id == current_user.id)
@@ -161,13 +190,25 @@ async def get_history(
     }
 
 
-@router.get("/{run_id}")
+@router.get(
+    "/{run_id}",
+    summary="Get a specific research run by ID",
+    responses={
+        200: {"description": "Full run detail including result JSON"},
+        401: {"description": "Missing or invalid JWT token"},
+        404: {"description": "Run not found or does not belong to the current user"},
+    },
+)
 async def get_run(
     run_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> dict:
-    """Get a specific past research run by ID, scoped to current user."""
+    """Retrieve a specific past research run by its database ID.
+
+    Runs are scoped to the authenticated user — a valid token for a different user
+    will return 404, not 403, to avoid leaking run existence.
+    """
     run = db.query(ResearchRun).filter(
         ResearchRun.id == run_id,
         ResearchRun.user_id == current_user.id,

@@ -21,44 +21,57 @@
           <!-- Left column -->
           <div class="form-col">
             <div class="form-group">
-              <label class="form-label">Competitors</label>
-              <p class="form-hint">Companies or products to track (one per line)</p>
-              <textarea v-model="input.competitors" class="form-input tall"
-                placeholder="OpenAI&#10;Mistral AI&#10;Cohere"></textarea>
+              <label class="form-label">Competitors <span class="required">*</span></label>
+              <p class="form-hint">Enter the names of companies or products you want to track — one per line.</p>
+              <textarea v-model="input.competitors"
+                class="form-input tall"
+                :class="{ 'input-error': fieldErrors.competitors }"
+                placeholder="One competitor or product name per line"></textarea>
+              <span v-if="fieldErrors.competitors" class="field-error">{{ fieldErrors.competitors }}</span>
             </div>
             <div class="form-group">
-              <label class="form-label">Topics</label>
-              <p class="form-hint">Themes or questions to research (one per line)</p>
-              <textarea v-model="input.topics" class="form-input"
-                placeholder="Pricing strategy&#10;New model releases&#10;Enterprise features"></textarea>
+              <label class="form-label">Topics <span class="optional">(optional)</span></label>
+              <p class="form-hint">Specific themes or questions to focus on — one per line. If left blank, the analysis uses your competitor names as topics.</p>
+              <textarea v-model="input.topics"
+                class="form-input"
+                placeholder="One topic or research question per line"></textarea>
             </div>
           </div>
 
           <!-- Right column -->
           <div class="form-col">
             <div class="form-group">
-              <label class="form-label">Source URLs</label>
-              <p class="form-hint">Public pages to analyze — blogs, news, release notes (one per line, max 5)</p>
-              <textarea v-model="input.urls" class="form-input tall"
-                placeholder="https://mistral.ai/news/mistral-large-2407/&#10;https://www.anthropic.com/news/claude-3-5-sonnet"></textarea>
+              <label class="form-label">Source URLs <span class="required">*</span></label>
+              <p class="form-hint">
+                Paste the public pages you want analyzed — blog posts, news pages, release notes, or announcements.
+                Enter one URL per line, between 1 and 5 URLs.
+                Each URL must start with <code>https://</code> or <code>http://</code>.
+              </p>
+              <textarea v-model="input.urls"
+                class="form-input tall"
+                :class="{ 'input-error': fieldErrors.urls }"
+                placeholder="One URL per line — must start with https:// or http://"></textarea>
+              <span v-if="fieldErrors.urls" class="field-error">{{ fieldErrors.urls }}</span>
             </div>
             <div class="url-preview" v-if="parsedUrls.length > 0">
-              <div v-for="(url, i) in parsedUrls" :key="i" class="url-chip">
+              <div v-for="(url, i) in parsedUrls" :key="i" class="url-chip"
+                :class="{ 'url-chip-invalid': !isValidUrl(url) }">
                 <span class="url-index">{{ i + 1 }}</span>
                 <span class="url-text">{{ url }}</span>
+                <span v-if="!isValidUrl(url)" class="url-invalid-tag">invalid URL</span>
               </div>
             </div>
           </div>
         </div>
-
-        <p v-if="error" class="error-text">{{ error }}</p>
 
         <div class="form-footer">
           <button type="submit" class="btn-primary btn-run" :disabled="isRunning">
             {{ isRunning ? 'Analyzing...' : 'Run Analysis' }}
           </button>
           <span class="form-meta" v-if="parsedUrls.length > 0">
-            {{ parsedCompetitors.length }} competitors · {{ parsedTopics.length }} topics · {{ parsedUrls.length }} URLs
+            {{ parsedCompetitors.length }} competitor{{ parsedCompetitors.length !== 1 ? 's' : '' }} ·
+            {{ parsedTopics.length > 0 ? parsedTopics.length + ' topic' + (parsedTopics.length !== 1 ? 's' : '') : 'topics from competitors' }} ·
+            {{ parsedUrls.length }} URL{{ parsedUrls.length !== 1 ? 's' : '' }}
           </span>
         </div>
 
@@ -187,13 +200,13 @@ import * as api from "../api";
 const tabs = ["input", "progress", "results"] as const;
 const activeTab = ref<"input" | "progress" | "results">("input");
 const isRunning = ref(false);
-const error = ref("");
 const progressLog = ref<Array<{ icon: string; text: string; type: string }>>([]);
 const result = ref<api.PipelineResult | null>(null);
 const urlStatuses = ref<Array<{ url: string; ok: boolean | null; error?: string }>>([]);
 let activeEventSource: EventSource | null = null;
 
 const input = ref({ competitors: "", topics: "", urls: "" });
+const fieldErrors = ref({ competitors: "", urls: "" });
 
 const parsedCompetitors = computed(() =>
   input.value.competitors.split("\n").map(s => s.trim()).filter(Boolean)
@@ -211,21 +224,39 @@ const verifiedCount = computed(() =>
   result.value ? totalClaims.value - result.value.hallucination_count : 0
 );
 
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 function validateInput(): boolean {
+  fieldErrors.value = { competitors: "", urls: "" };
+  let valid = true;
+
   if (parsedCompetitors.value.length === 0) {
-    error.value = "Enter at least one competitor.";
-    return false;
+    fieldErrors.value.competitors = "Enter at least one competitor or product name.";
+    valid = false;
   }
+
   if (parsedUrls.value.length === 0) {
-    error.value = "Enter at least one URL.";
-    return false;
+    fieldErrors.value.urls = "Enter at least one source URL.";
+    valid = false;
+  } else if (parsedUrls.value.length > 5) {
+    fieldErrors.value.urls = `You entered ${parsedUrls.value.length} URLs — maximum is 5. Remove ${parsedUrls.value.length - 5} to continue.`;
+    valid = false;
+  } else {
+    const invalidUrls = parsedUrls.value.filter(u => !isValidUrl(u));
+    if (invalidUrls.length > 0) {
+      fieldErrors.value.urls = `${invalidUrls.length} URL${invalidUrls.length > 1 ? "s are" : " is"} invalid — each must start with https:// or http://`;
+      valid = false;
+    }
   }
-  if (parsedUrls.value.length > 5) {
-    error.value = "Maximum 5 URLs allowed.";
-    return false;
-  }
-  error.value = "";
-  return true;
+
+  return valid;
 }
 
 function submitResearch(): void {
@@ -326,6 +357,7 @@ function resetForm(): void {
   result.value = null;
   progressLog.value = [];
   urlStatuses.value = [];
+  fieldErrors.value = { competitors: "", urls: "" };
   activeTab.value = "input";
 }
 </script>
@@ -403,6 +435,18 @@ function resetForm(): void {
   border-radius: 4px;
   padding: 0.3rem 0.6rem;
   font-size: 0.8rem;
+}
+
+.url-chip-invalid {
+  background: #fee2e2;
+}
+
+.url-invalid-tag {
+  font-size: 0.72rem;
+  color: var(--color-danger);
+  font-weight: 600;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .url-index {
@@ -679,12 +723,37 @@ function resetForm(): void {
   color: var(--color-primary);
 }
 
-.error-text {
+.required {
   color: var(--color-danger);
-  font-size: 0.9rem;
-  padding: 0.65rem 0.85rem;
-  background: #fee2e2;
-  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.optional {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.field-error {
+  color: var(--color-danger);
+  font-size: 0.82rem;
+  margin-top: 0.2rem;
+}
+
+.input-error {
+  border-color: var(--color-danger) !important;
+}
+
+.input-error:focus {
+  outline-color: var(--color-danger);
+}
+
+.form-hint code {
+  font-size: 0.82rem;
+  background: #f1f5f9;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  color: var(--color-text);
 }
 
 .empty-state {

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        env_ignore_empty=True,   # empty string env vars fall back to field defaults
     )
 
     # LLM
@@ -77,6 +78,3 @@ def get_settings() -> Settings:
     Cache ensures .env is only read once per process.
     """
     return Settings()
-
-
-settings = get_settings()

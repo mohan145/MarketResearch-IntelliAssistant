@@ -26,26 +26,38 @@ Three interconnected decisions were made:
 **Option A: Dedicated high-quality judge model (e.g. Claude Sonnet, GPT-4o)**
 - **Approach:** Use a larger, more capable model exclusively for judgment — higher
   reasoning quality, better at detecting subtle hallucinations.
-- **Pros:** More accurate verdicts, better at nuanced claim verification.
-- **Cons:** Requires second API key + billing account. Cost: ~$3–15 per 1M tokens.
-  Not viable for a free-tier demo.
+- **Pros:** More accurate verdicts, better at nuanced claim verification. A stronger
+  model can reason about implicit contradictions, paraphrased claims, and context the
+  summarizer may have misread. This is the correct approach for production use.
+- **Cons:** Requires a second API key + billing account for the judge provider.
+  Cost: ~$3–15 per 1M tokens. Not viable on the free tier used for this demo.
 
-**Option B: Same model as summarizer (chosen)**
+**Option B: Same model as summarizer (chosen for demo)**
 - **Approach:** Reuse the same `LLM_MODEL` (currently `gemini-2.5-flash-lite`) for
   both summarization and judgment. Single API key, single billing account.
 - **Pros:** Zero extra cost. Simple config — one model setting controls everything.
-  Gemini 2.5 Flash Lite is capable enough for binary claim verification.
 - **Cons:** Lite models are less reliable at nuanced reasoning. A claim that's
-  borderline may be incorrectly verified or incorrectly flagged.
+  borderline may be incorrectly verified or incorrectly flagged. More critically,
+  the same model that generated a hallucination may also fail to detect it — the
+  judge and the summarizer share the same blind spots.
 
 ### Decision
 **Option B** — single model for both roles, driven entirely by `LLM_MODEL` in `.env`.
 
+This is a **demo-stage constraint**, not the recommended production approach.
+
 ### Rationale
 For a demo with known, factual source URLs (blog posts, news articles), a lite model
-is sufficient. The judge task is simpler than the summarizer task — it's a binary
-yes/no against a short text excerpt, not open-ended synthesis. Accuracy improves
-naturally when a better model is configured via `LLM_MODEL`.
+is acceptable. The judge task is structurally simpler than summarization — it's a
+binary yes/no against a short text excerpt, not open-ended synthesis.
+
+**Ideal production setup:** Use a dedicated, stronger model for the judge role — for
+example Claude Sonnet or GPT-4o — while keeping a faster, cheaper model for
+summarization. The judge only runs on a small number of claims (capped at 3 by default),
+so the cost increase is modest but the accuracy gain is significant. The architecture
+already supports this: `judge.py` accepts any `BaseChatModel` instance, so wiring in
+a separate judge model requires only a config addition (`JUDGE_PROVIDER`, `JUDGE_MODEL`)
+and a second `get_llm()` call in the orchestrator — no structural change to the pipeline.
 
 ---
 

@@ -76,15 +76,28 @@ async def get_current_user(
     return user
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Log in and obtain a JWT",
+    responses={
+        200: {"description": "Login successful — returns a 24-hour Bearer token"},
+        401: {"description": "Invalid email or password"},
+    },
+)
 async def login(
     body: LoginRequest,
     db: Annotated[Session, Depends(get_session)],
 ) -> TokenResponse:
-    """Authenticate with email + password, return JWT.
+    """Authenticate with email and password and receive a signed JWT.
 
-    Only the seeded demo user can log in (see ADR-004).
-    Returns a 24-hour Bearer token for use on protected routes.
+    The token is valid for 24 hours. Pass it as `Authorization: Bearer <token>` on all
+    protected endpoints, or as `?token=<token>` on the SSE `/run` endpoint.
+
+    **Demo credentials:** `demo@example.com` / `demo1234`
+
+    Only the seeded demo user can log in at this stage (see ADR-004 for the rationale and
+    the upgrade path to full multi-user registration).
     """
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):

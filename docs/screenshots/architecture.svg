@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 520" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+
+  <!-- Background -->
+  <rect width="860" height="520" fill="#f8f9fa" rx="8"/>
+
+  <!-- Title -->
+  <text x="430" y="30" text-anchor="middle" font-size="15" font-weight="bold" fill="#1a1a2e">Market Research Intelligence Assistant — Architecture</text>
+
+  <!-- ── BROWSER box ── -->
+  <rect x="30" y="55" width="160" height="64" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="110" y="78" text-anchor="middle" font-weight="bold" fill="#1e40af">Browser</text>
+  <text x="110" y="96" text-anchor="middle" font-size="11" fill="#1e40af">Vue 3 SPA</text>
+  <text x="110" y="111" text-anchor="middle" font-size="10" fill="#3b82f6">Azure Static Web Apps</text>
+
+  <!-- ── arrow Browser → FastAPI ── -->
+  <line x1="190" y1="87" x2="258" y2="87" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="224" y="80" text-anchor="middle" font-size="10" fill="#6b7280">SSE stream</text>
+  <text x="224" y="98" text-anchor="middle" font-size="10" fill="#6b7280">POST /api/run</text>
+
+  <!-- ── FASTAPI box ── -->
+  <rect x="258" y="55" width="160" height="64" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="338" y="78" text-anchor="middle" font-weight="bold" fill="#14532d">FastAPI</text>
+  <text x="338" y="96" text-anchor="middle" font-size="11" fill="#14532d">+ Uvicorn  :8000</text>
+  <text x="338" y="111" text-anchor="middle" font-size="10" fill="#16a34a">Azure Container Apps</text>
+
+  <!-- ── arrow FastAPI → Scraper ── -->
+  <line x1="338" y1="119" x2="338" y2="168" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ── PIPELINE group label ── -->
+  <rect x="238" y="168" width="400" height="185" rx="6" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="258" y="185" font-size="11" fill="#9ca3af">Pipeline</text>
+
+  <!-- Scraper -->
+  <rect x="258" y="192" width="160" height="52" rx="5" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="338" y="213" text-anchor="middle" font-weight="bold" fill="#713f12">Scraper</text>
+  <text x="338" y="230" text-anchor="middle" font-size="11" fill="#713f12">httpx + trafilatura</text>
+  <text x="338" y="245" text-anchor="middle" font-size="10" fill="#ca8a04">ExtractedContent[ ]</text>
+
+  <!-- arrow Scraper → Summarizer -->
+  <line x1="338" y1="244" x2="338" y2="282" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Summarizer -->
+  <rect x="258" y="282" width="160" height="52" rx="5" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="338" y="303" text-anchor="middle" font-weight="bold" fill="#3b0764">Summarizer</text>
+  <text x="338" y="320" text-anchor="middle" font-size="11" fill="#3b0764">LangChain + Gemini</text>
+  <text x="338" y="335" text-anchor="middle" font-size="10" fill="#7c3aed">MarketSummary</text>
+
+  <!-- arrow Summarizer → Judge -->
+  <line x1="418" y1="308" x2="478" y2="308" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Judge -->
+  <rect x="478" y="282" width="145" height="52" rx="5" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="550" y="303" text-anchor="middle" font-weight="bold" fill="#7f1d1d">Judge</text>
+  <text x="550" y="320" text-anchor="middle" font-size="11" fill="#7f1d1d">LangChain + Gemini</text>
+  <text x="550" y="335" text-anchor="middle" font-size="10" fill="#dc2626">JudgeVerdict[ ]</text>
+
+  <!-- arrow FastAPI → Judge (SSE events back) -->
+  <line x1="550" y1="282" x2="550" y2="192" stroke="#6b7280" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-dashed)"/>
+  <line x1="550" y1="192" x2="418" y2="119" stroke="#6b7280" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-dashed)"/>
+  <text x="590" y="230" font-size="10" fill="#9ca3af">SSE events</text>
+  <text x="590" y="243" font-size="10" fill="#9ca3af">back to browser</text>
+
+  <!-- arrow Pipeline → SQLite -->
+  <line x1="338" y1="353" x2="338" y2="400" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ── SQLITE box ── -->
+  <rect x="258" y="400" width="160" height="52" rx="6" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+  <text x="338" y="422" text-anchor="middle" font-weight="bold" fill="#1e293b">SQLite</text>
+  <text x="338" y="439" text-anchor="middle" font-size="11" fill="#1e293b">Azure File Share</text>
+  <text x="338" y="454" text-anchor="middle" font-size="10" fill="#64748b">/app/data/</text>
+
+  <!-- ── CI/CD section ── -->
+  <rect x="670" y="55" width="170" height="200" rx="6" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="755" y="78" text-anchor="middle" font-weight="bold" fill="#7c2d12">CI / CD</text>
+  <text x="755" y="98" text-anchor="middle" font-size="11" fill="#7c2d12">push to main</text>
+  <text x="755" y="115" text-anchor="middle" font-size="10" fill="#ea580c">↓ GitHub Actions</text>
+
+  <rect x="685" y="122" width="140" height="30" rx="4" fill="#ffedd5" stroke="#fb923c" stroke-width="1"/>
+  <text x="755" y="142" text-anchor="middle" font-size="11" fill="#7c2d12">Build → ghcr.io</text>
+
+  <rect x="685" y="160" width="140" height="30" rx="4" fill="#ffedd5" stroke="#fb923c" stroke-width="1"/>
+  <text x="755" y="180" text-anchor="middle" font-size="11" fill="#7c2d12">Deploy backend → ACA</text>
+
+  <rect x="685" y="198" width="140" height="30" rx="4" fill="#ffedd5" stroke="#fb923c" stroke-width="1"/>
+  <text x="755" y="218" text-anchor="middle" font-size="11" fill="#7c2d12">Deploy frontend → SWA</text>
+
+  <!-- arrow CI/CD → FastAPI -->
+  <line x1="670" y1="175" x2="418" y2="100" stroke="#ea580c" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-orange)"/>
+
+  <!-- ── Legend ── -->
+  <rect x="30" y="460" width="560" height="48" rx="5" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="46" y="478" font-size="11" font-weight="bold" fill="#374151">Legend:</text>
+  <line x1="110" y1="474" x2="145" y2="474" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="150" y="478" font-size="11" fill="#374151">Data flow</text>
+  <line x1="240" y1="474" x2="275" y2="474" stroke="#6b7280" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-dashed)"/>
+  <text x="280" y="478" font-size="11" fill="#374151">SSE events</text>
+  <line x1="375" y1="474" x2="410" y2="474" stroke="#ea580c" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-orange)"/>
+  <text x="415" y="478" font-size="11" fill="#374151">Deployment</text>
+
+  <text x="46" y="498" font-size="10" fill="#9ca3af">ACA = Azure Container Apps  |  SWA = Azure Static Web Apps  |  SSE = Server-Sent Events</text>
+
+  <!-- ── Arrow markers ── -->
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrow-dashed" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#9ca3af"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#ea580c"/>
+    </marker>
+  </defs>
+
+</svg>
