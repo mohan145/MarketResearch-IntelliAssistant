@@ -14,7 +14,7 @@ COPY src/backend/__init__.py src/backend/__init__.py
 # Install all backend + scraping + llm deps into /install
 RUN pip install --upgrade pip && \
     pip install --prefix=/install \
-        "fastapi>=0.115.0" \
+        "fastapi[standard]>=0.115.0" \
         "uvicorn[standard]>=0.30.0" \
         "pydantic>=2.5.0" \
         "pydantic-settings>=2.5.0" \
