@@ -68,33 +68,36 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure Container Apps
-        uses: azure/container-apps-deploy-action@v1
-        with:
-          resourceGroup: market-research-rg
-          containerAppName: market-research-api
-          imageToDeploy: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          registryUrl: ${{ env.REGISTRY }}
-          registryUsername: ${{ github.actor }}
-          registryPassword: ${{ secrets.GITHUB_TOKEN }}
-          environmentVariables: |
-            LLM_PROVIDER=${{ secrets.LLM_PROVIDER }}
-            LLM_MODEL=${{ secrets.LLM_MODEL }}
-            DEMO_EMAIL=${{ secrets.DEMO_EMAIL }}
-            APP_ENV=production
-            LOG_LEVEL=INFO
-            DATABASE_URL=sqlite:////app/data/market_research.db
-            ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
-            PIPELINE_MAX_ARTICLE_CHARS=3000
-            PIPELINE_MAX_SOURCE_CHARS=2000
-            PIPELINE_MAX_JUDGE_CLAIMS=3
-            PIPELINE_MAX_THEMES=2
-            PIPELINE_MAX_COMPETITOR_ACTIVITIES=2
-            PIPELINE_HALLUCINATION_THRESHOLD=0.8
-            ANTHROPIC_API_KEY=secretref:anthropic-api-key
-            GOOGLE_API_KEY=secretref:google-api-key
-            SECRET_KEY=secretref:secret-key
-            DEMO_PASSWORD=secretref:demo-password
+      - name: Deploy image to Azure Container Apps
+        run: |
+          az containerapp update \
+            --name market-research-api \
+            --resource-group market-research-rg \
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --set-env-vars \
+              LLM_PROVIDER=${{ secrets.LLM_PROVIDER }} \
+              LLM_MODEL=${{ secrets.LLM_MODEL }} \
+              DEMO_EMAIL=${{ secrets.DEMO_EMAIL }} \
+              APP_ENV=production \
+              LOG_LEVEL=INFO \
+              "DATABASE_URL=sqlite:////app/data/market_research.db" \
+              PIPELINE_MAX_ARTICLE_CHARS=3000 \
+              PIPELINE_MAX_SOURCE_CHARS=2000 \
+              PIPELINE_MAX_JUDGE_CLAIMS=3 \
+              PIPELINE_MAX_THEMES=2 \
+              PIPELINE_MAX_COMPETITOR_ACTIVITIES=2 \
+              PIPELINE_HALLUCINATION_THRESHOLD=0.8 \
+              GOOGLE_API_KEY=secretref:google-api-key \
+              ANTHROPIC_API_KEY=secretref:anthropic-api-key \
+              SECRET_KEY=secretref:secret-key \
+              DEMO_PASSWORD=secretref:demo-password
+
+      - name: Set ALLOWED_ORIGINS
+        run: |
+          az containerapp update \
+            --name market-research-api \
+            --resource-group market-research-rg \
+            --set-env-vars ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
 
   # ── Job 3: Build & deploy frontend to Azure Static Web Apps ───────────────
   deploy-frontend:
