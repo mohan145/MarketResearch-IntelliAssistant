@@ -56,6 +56,7 @@ class Settings(BaseSettings):
 
     # App
     app_env: Literal["local", "production"] = "local"
+    enable_docs: bool = True  # Set ENABLE_DOCS=false to hide Swagger in production
 
     @property
     def allowed_origins_list(self) -> list[str]:

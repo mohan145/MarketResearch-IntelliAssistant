@@ -83,16 +83,25 @@ def fetch_url(url: str, timeout: int = 15) -> FetchResult:
             url=url,
             status_code=0,
             html=None,
-            error=f"Timeout after {timeout}s",
+            error=f"Timed out after {timeout}s — site too slow or unreachable",
             fetched_at=datetime.utcnow(),
         )
 
     except httpx.HTTPStatusError as e:
+        code = e.response.status_code
+        messages = {
+            403: "Access denied (403) — site blocks automated access",
+            404: "Page not found (404)",
+            429: "Rate limited (429) — too many requests",
+            500: "Server error (500)",
+            503: "Service unavailable (503)",
+        }
+        error_msg = messages.get(code, f"HTTP {code}")
         return FetchResult(
             url=url,
-            status_code=e.response.status_code,
+            status_code=code,
             html=None,
-            error=f"HTTP {e.response.status_code}",
+            error=error_msg,
             fetched_at=datetime.utcnow(),
         )
 

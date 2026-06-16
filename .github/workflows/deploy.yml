@@ -80,6 +80,7 @@ jobs:
               DEMO_EMAIL=${{ secrets.DEMO_EMAIL }} \
               APP_ENV=production \
               LOG_LEVEL=INFO \
+              ENABLE_DOCS=true \
               "DATABASE_URL=sqlite:////app/data/market_research.db" \
               PIPELINE_MAX_ARTICLE_CHARS=3000 \
               PIPELINE_MAX_SOURCE_CHARS=2000 \

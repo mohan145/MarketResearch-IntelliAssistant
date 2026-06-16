@@ -17,8 +17,8 @@ app = FastAPI(
     title="Market Research Intelligence Assistant",
     description="Collect, analyze, and summarize market intelligence from public sources.",
     version="0.1.0",
-    docs_url="/docs" if not settings.is_production else None,
-    redoc_url="/redoc" if not settings.is_production else None,
+    docs_url="/docs" if settings.enable_docs else None,
+    redoc_url="/redoc" if settings.enable_docs else None,
 )
 
 app.add_middleware(

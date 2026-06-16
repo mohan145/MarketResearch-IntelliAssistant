@@ -1,7 +1,7 @@
 # Progress Log — Market Research Intelligence Assistant
 
 ## Active Task
-`docs/tasks/phase-1-scraping.md`
+`docs/tasks/phase-5-azure-deployment.md`
 
 ---
 
@@ -38,6 +38,50 @@ Verified:
 - Fixed auth guard in frontend router (disabled for testing, will enforce in Phase 4)
 - Confirmed all Phase 0 deliverables work locally
 - Created Phase 1 task tracking
+
+**Phase 3 Complete ✅ — Vue Frontend (2026-06-15)**
+
+All 8 steps implemented:
+- Step 3.1 ✅ `src/frontend/src/api.ts` — SSE streaming, type interfaces, auth headers
+- Step 3.2 ✅ `src/frontend/src/pages/NewResearch.vue` — Tab-based UI (input/progress/results), form validation, SSE event handling
+- Step 3.3 ✅ `src/frontend/src/pages/History.vue` — Table view + detail view with report rendering
+- Step 3.4 ✅ `src/frontend/src/pages/Login.vue` — Login form wired to `/auth/login`, JWT stored in localStorage
+- Step 3.5 ✅ `src/frontend/src/router.ts` — 3 routes with auth guard (disabled for Phase 3 testing)
+- Step 3.6 ✅ `src/frontend/src/style.css` — Complete CSS system (variables, layout, cards, forms, badges, responsive)
+- Step 3.7 ✅ Frontend dev server running on port 5174, backend on port 8000, proxy configured
+- Fixed vite.config proxy port (9000 → 8000)
+
+Frontend fully functional with live SSE progress streaming and full report rendering. Ready for manual testing and Phase 4 auth/persistence.
+
+**Session 3 — Bug Fixes & Integration (2026-06-15)**
+
+Issues fixed:
+- **SSE Named Events Not Routing:** EventSource's `addEventListener("result", ...)` wasn't properly catching named events from the backend. Solution: simplified to send ALL events as default messages (no "event:" prefix) and detect type via stage field. Much more reliable across browsers
+- **HTTP 403 Blocked Requests:** Added User-Agent header to scraper to avoid bot detection. URLs like openai.com return 403; Mistral and Anthropic URLs work fine
+- **Unicode Encoding Error:** Removed checkmark characters (✓) from orchestrator messages — caused encoding errors on Windows cp1252. Changed to plain ASCII messages
+- **Mock LLM Fallback:** Working correctly when ANTHROPIC_API_KEY not set — generates realistic demo responses for summarization and judgment
+
+Architecture simplified:
+```
+Backend: Sends all events as default SSE messages with { stage, message, progress, result? }
+         - progress stages: scraping, summarizing, judging
+         - terminal stages: done (success), error (failure)
+         
+Frontend: Single onmessage handler parses all events
+         - Detects done/error by stage field
+         - Extracts result object for rendering
+         - All logic in one clean path
+```
+
+End-to-end pipeline verified working:
+```
+URLs → scraper (with User-Agent header) → extract content
+     → summarizer (mock LLM when no key set) → MarketSummary
+     → judge (mock LLM) → hallucination verdicts
+     → SSE stream (default messages) → frontend detects stage → UI renders results
+```
+
+All code changes backward-compatible. Ready for manual testing with browser.
 
 **Phase 1 Complete ✅**
 
@@ -163,27 +207,112 @@ See `docs/adr/` for detailed architectural decisions:
 
 ---
 
+---
+
+### Session 4 — Phase 4 Auth + Persistence (2026-06-15)
+
+**What was done:**
+- Implemented `src/backend/models.py` — `User` and `ResearchRun` SQLAlchemy models
+- Implemented `src/backend/api/auth.py` — `POST /auth/login`, JWT issuance, `get_current_user()` dependency
+- Switched from passlib bcrypt to direct `bcrypt` library (passlib wrap-bug on Python 3.11+)
+- Demo user seeded in `init_db()` on startup — idempotent, survives restarts
+- All research routes protected with `Depends(get_current_user)`
+- SSE endpoint uses `?token=` query param (EventSource can't set headers — see ADR-004)
+- Research runs saved to SQLite on pipeline completion
+- History page wired to `/api/research/history` — returns runs scoped to current user
+- Frontend router guard enforced — unauthenticated users redirected to `/login`
+- `api.ts` `apiFetch` wrapper auto-redirects on 401
+- App.vue navbar reactive via `router.afterEach`
+
+**Phase 4 Complete ✅**
+
+---
+
+### Session 5 — UI Improvements + Performance (2026-06-15/16)
+
+**What was done:**
+- Redesigned `NewResearch.vue` — two-column form (competitors+topics | URLs), URL preview chips, per-URL status grid in progress tab, source domain badges on results
+- Orchestrator emits per-URL `url_status` events for individual scrape status
+- Added `Topics` as separate field (was merged with competitors)
+- Performance tuning (ADR-005): article truncation, judge call cap, configurable via `.env`
+- Added `PIPELINE_HALLUCINATION_THRESHOLD` — configurable confidence cutoff (default 0.8)
+- All LLM model/provider hardcodes removed — fully driven by `.env`
+- `LLM_MODEL` startup validation — fails fast with clear message if not set
+- LLM cache key includes model name — prevents stale instances on config change
+- Google Gemini `max_retries=0` + `QuotaFallbackLLM` wrapper — stops 429 retry loops
+- Friendly HTTP error messages in scraper (403, 404, 429, 500, 503)
+- `ENABLE_DOCS` flag — controls Swagger availability independent of APP_ENV
+- History page fixed — trust score badge, loadError state, empty state with link
+
+**ADRs written:**
+- ADR-004: Auth strategy (FastAPI JWT + seeded demo user)
+- ADR-005: Pipeline performance tuning
+
+---
+
+### Session 6 — Azure Deployment (2026-06-16)
+
+**What was done:**
+- Created `infra/Dockerfile` — multi-stage python:3.11-slim build
+- Created `infra/docker-compose.yml` — local container testing
+- Created `src/frontend/staticwebapp.config.json` — SPA routing fix
+- Created `.github/workflows/deploy.yml` — full CI/CD pipeline
+- Provisioned Azure resources (all free tier):
+  - Resource group: `market-research-rg` (West US 3)
+  - Storage account: `mkintlstore` + File Share `sqlitedata`
+  - Container Apps environment: `market-research-env`
+  - Container App: `market-research-api`
+  - Static Web App: `market-research-ui`
+- Switched from `azure/container-apps-deploy-action` to direct `az` CLI in workflow (more reliable env var handling)
+- Switched container registry from ACR to ghcr.io (free)
+- Fixed image name casing — ghcr.io requires lowercase, used `github.repository_owner`
+- Added Docker Buildx setup for GHA cache support
+
+**Live URLs:**
+- Frontend: `https://green-river-07505240f.7.azurestaticapps.net`
+- Backend: `https://market-research-api.wonderfulwave-7cb4df30.westus3.azurecontainerapps.io`
+- Health: `https://market-research-api.wonderfulwave-7cb4df30.westus3.azurecontainerapps.io/health`
+
+**Known limitation:** SQLite File Share volume mount not yet wired — DB resets on container restart. Run history not persistent in production. Fix: mount `sqlitedata` file share to `/app/data` in ACA.
+
+**ADR written:** ADR-006: Azure deployment strategy
+
+**Phase 5 Complete ✅ (deployment done, README complete)**
+
+---
+
+### Session 7 — README (2026-06-16)
+
+**What was done:**
+- Step 5.6: Wrote full `README.md` (9 sections: title, live URLs, demo account, architecture diagram, tech stack + decisions, development story + folder structure, local setup guide, ADR summaries, AI tools and models)
+- Checked off Step 5.6 in `docs/tasks/phase-5-azure-deployment.md`
+- Updated deliverables table in PROGRESS.md — all README rows now complete
+
+All problem statement deliverables satisfied. Project complete through Phase 5.
+
+---
+
 ## Deliverables Tracking (from ProblemStatement.txt)
 
-| Deliverable | Phase | Status |
-|---|---|---|
-| Live hosted URL (Azure) | Phase 5 | Pending |
-| Source code repository (GitHub) | Phase 0 | In Progress |
-| README — problem statement | Phase 5 | Pending |
-| README — architecture & tech stack | Phase 5 | Pending |
-| README — local build & run instructions | Phase 5 | Pending |
-| README — AI tools/models/libraries used | Phase 5 | Pending |
-| Written explanation of design decisions | Phase 5 (this PROGRESS.md) | In Progress |
-| Input form (topics + URLs) | Phase 3 | Pending |
-| Fetch and process content from URLs | Phase 1 | Pending |
-| Research phase on topics/resources | Phase 2 | Pending |
-| AI summary grouped by themes | Phase 2 | Pending |
-| Source traceability per insight | Phase 2 | Pending |
-| Hallucination check (LLM-as-a-judge) | Phase 2 | Pending |
-| Authentication | Phase 4 | Pending |
-| Simple persistence (run history) | Phase 4 | Pending |
-| Change detection — stretch | Phase 6 | Pending |
-| Simple monitoring — stretch | Phase 6 | Pending |
+| Deliverable | Status |
+|---|---|
+| Live hosted URL (Azure) | ✅ https://green-river-07505240f.7.azurestaticapps.net |
+| Source code repository (GitHub) | ✅ pushed to main |
+| README — problem statement | ✅ README.md §1 |
+| README — architecture & tech stack | ✅ README.md §4–5 |
+| README — local build & run instructions | ✅ README.md §7 |
+| README — AI tools/models/libraries used | ✅ README.md §9 |
+| Written explanation of design decisions | ✅ ADRs 001–006 in docs/adr/ |
+| Input form (topics + URLs) | ✅ |
+| Fetch and process content from URLs | ✅ |
+| Research phase on topics/resources | ✅ |
+| AI summary grouped by themes | ✅ |
+| Source traceability per insight | ✅ |
+| Hallucination check (LLM-as-a-judge) | ✅ |
+| Authentication | ✅ JWT + demo user |
+| Simple persistence (run history) | ✅ SQLite (ephemeral in prod until File Share mounted) |
+| Change detection — stretch | ⬜ |
+| Simple monitoring — stretch | ⬜ |
 
 ---
 
@@ -191,11 +320,11 @@ See `docs/adr/` for detailed architectural decisions:
 
 | Phase | Status | Completed |
 |---|---|---|
-| Phase 0 — Scaffold | Completed ✅ | All 11 steps done |
-| Phase 1 — Scraping Layer | Completed ✅ | All 3 steps done |
-| Phase 2 — LLM Pipeline | Completed ✅ | All 5 steps done |
-| Phase 2.5 — API Endpoints | Completed ✅ | SSE streaming wired |
-| Phase 3 — Vue Frontend | In Progress 🔄 | UI shell done, testing |
-| Phase 4 — Auth + Persistence | Pending | — |
-| Phase 5 — Azure Deployment + README | Pending | — |
-| Phase 6 — Change Detection + Monitoring (Stretch) | Pending | — |
+| Phase 0 — Scaffold | ✅ Completed | All 11 steps done |
+| Phase 1 — Scraping Layer | ✅ Completed | Trafilatura + User-Agent + error handling |
+| Phase 2 — LLM Pipeline | ✅ Completed | Summarizer + Judge + Orchestrator |
+| Phase 2.5 — API Endpoints | ✅ Completed | SSE streaming wired |
+| Phase 3 — Vue Frontend | ✅ Completed | Two-column form, per-URL progress, results |
+| Phase 4 — Auth + Persistence | ✅ Completed | JWT, demo user, SQLite history |
+| Phase 5 — Azure Deployment | ✅ Completed | Live on Azure, CI/CD via GitHub Actions |
+| Phase 6 — Change Detection + Monitoring | ⬜ Stretch | — |
