@@ -27,7 +27,7 @@ async def run_pipeline_async(
     urls: list[str],
     competitors: list[str],
     topics: list[str],
-    llm_provider: str = "google",
+    llm_provider: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Run research pipeline with SSE-style progress events.
 
@@ -179,7 +179,7 @@ def run_pipeline(
     urls: list[str],
     competitors: list[str],
     topics: list[str],
-    llm_provider: str = "google",
+    llm_provider: str | None = None,
 ) -> PipelineResult:
     """Run research pipeline synchronously (blocking).
 

@@ -69,7 +69,7 @@ def _get_google_gemini() -> BaseChatModel:
         from langchain_core.messages import BaseMessage
 
         real_llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model=settings.llm_model,
             api_key=settings.google_api_key,
             temperature=0.7,
             top_p=0.95,
@@ -158,7 +158,7 @@ def _get_openai_gpt() -> BaseChatModel:
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(
-            model="gpt-4o-mini",
+            model=settings.llm_model,
             api_key=settings.openai_api_key,
             temperature=0.7,
             top_p=0.95,
@@ -275,18 +275,16 @@ _llm_cache: dict[str, BaseChatModel] = {}
 
 
 def get_llm_cached(provider: str | None = None) -> BaseChatModel:
-    """Get cached LLM instance (same instance per provider per process).
-
-    Avoids recreating LLM instances for every request.
-    Safe for FastAPI dependency injection (request-scoped cleanup handles cache).
-    """
+    """Get cached LLM instance keyed by provider+model to avoid stale instances."""
     from src.backend.config import get_settings
 
     settings = get_settings()
     provider = provider or settings.llm_provider
+    # Include model in cache key — prevents stale instance when model changes in .env
+    cache_key = f"{provider}:{settings.llm_model}"
 
-    if provider not in _llm_cache:
-        _llm_cache[provider] = get_llm(provider)
-        logger.debug(f"Cached LLM instance for provider: {provider}")
+    if cache_key not in _llm_cache:
+        _llm_cache[cache_key] = get_llm(provider)
+        logger.debug(f"Cached LLM instance: {cache_key}")
 
-    return _llm_cache[provider]
+    return _llm_cache[cache_key]

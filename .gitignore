@@ -218,3 +218,6 @@ __marimo__/
 .streamlit/secrets.toml
 /.idea
 /src/frontend/node_modules
+/data/
+*.db
+*.db-journal

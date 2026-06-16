@@ -37,8 +37,12 @@ async def on_startup() -> None:
     """Initialize database tables on first run."""
     from src.backend.database import init_db
 
+    if not settings.llm_model:
+        raise RuntimeError("LLM_MODEL is not set in .env — e.g. LLM_MODEL=gemini-2.5-flash-lite")
+
     init_db()
-    logger.info("Database initialized. App env: %s", settings.app_env)
+    logger.info("Database initialized. App env: %s, LLM: %s/%s",
+                settings.app_env, settings.llm_provider, settings.llm_model)
 
 
 @app.get("/health", tags=["system"])
