@@ -19,6 +19,7 @@ grounded in what was actually written.
 - [How This App Was Built](#how-this-app-was-built)
 - [Local Setup](#local-setup)
 - [Design Decisions](#design-decisions)
+- [Free-Tier Constraints and Retry Guidance](#free-tier-constraints-and-retry-guidance)
 - [Known Limitations](#known-limitations)
 - [Production Improvements](#production-improvements)
 - [AI Tools and Models Used](#ai-tools-and-models-used)
@@ -377,6 +378,54 @@ from lite models that express lower confidence. I also designed the scraper with
 model — the pipeline continues as long as at least one URL succeeds, with per-URL status streamed
 live to the frontend.
 → Full rationale: [`docs/adr/ADR-007-llm-judge-design.md`](docs/adr/ADR-007-llm-judge-design.md)
+
+---
+
+## Free-Tier Constraints and Retry Guidance
+
+The hosted demo runs entirely on free infrastructure. Most transient errors resolve on their own
+within a minute — no code change needed.
+
+### Google Gemini free tier
+
+| Quota | Limit |
+|---|---|
+| Requests per minute | 15 RPM (Gemini Flash Lite) |
+| Requests per day | 1,500 RPD |
+
+**503 / "model overloaded"** — Gemini free-tier nodes handle bursts from all global free users.
+Spikes are temporary. Wait 30–60 seconds and click **Run Analysis** again.
+
+**429 / rate limit** — You have hit the per-minute cap (15 RPM). Wait ~60 seconds.
+If you hit the daily cap (1,500 RPD), the quota resets at midnight Pacific time.
+You can monitor usage at [aistudio.google.com](https://aistudio.google.com).
+
+**If errors persist**, switch to a paid key or change the provider:
+```dotenv
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-haiku-4-5-20251001
+ANTHROPIC_API_KEY=<your key>
+```
+
+### Azure Container Apps cold start
+
+The backend scales to zero when idle. The first request after a period of inactivity takes
+**3–10 seconds** to start the container before the pipeline even begins — this is normal.
+Subsequent requests within the same session are fast.
+
+### URL scraping restrictions
+
+Some sites actively block automated access regardless of headers:
+
+| Site type | What you'll see | Workaround |
+|---|---|---|
+| Cloudflare / bot-protected (e.g. openai.com) | "Blocked by site (bot protection)" | Use a different page on the same site, or a cached/mirror URL |
+| JavaScript-rendered pages (SPAs) | "No readable content extracted" | Link to a static blog or news page, not the app itself |
+| Paywalled articles | "No readable content extracted" | Use a free preview URL or a public summary page |
+| Very slow sites | "Request timed out" | Try again, or use a faster mirror |
+
+The pipeline continues as long as **at least one URL** scrapes successfully — a single failed
+URL does not abort the run.
 
 ---
 

@@ -82,7 +82,7 @@
     <div v-if="activeTab === 'progress'" class="tab-content">
       <div class="progress-card">
         <div class="progress-header">
-          <h2>{{ isRunning ? 'Analysis in progress...' : 'Analysis complete' }}</h2>
+          <h2>{{ isRunning ? 'Analysis in progress...' : pipelineError ? 'Analysis failed' : 'Analysis complete' }}</h2>
           <div v-if="isRunning" class="spinner"></div>
         </div>
 
@@ -102,6 +102,23 @@
             :class="msg.type">
             <span class="progress-icon">{{ msg.icon }}</span>
             <span class="progress-text">{{ msg.text }}</span>
+          </div>
+        </div>
+
+        <!-- Info note -->
+        <p class="progress-note">
+          Analysis may take longer when free or low-tier AI models are used due to service demand and rate limits.
+        </p>
+
+        <!-- Error banner with retry -->
+        <div v-if="pipelineError" class="error-banner">
+          <div class="error-banner-body">
+            <span class="error-banner-icon">⚠️</span>
+            <span class="error-banner-msg">{{ pipelineError }}</span>
+          </div>
+          <div class="error-banner-actions">
+            <button class="btn-primary" @click="retryResearch">Try Again</button>
+            <button class="btn-secondary" @click="activeTab = 'input'">Edit Inputs</button>
           </div>
         </div>
 
@@ -203,6 +220,7 @@ const isRunning = ref(false);
 const progressLog = ref<Array<{ icon: string; text: string; type: string }>>([]);
 const result = ref<api.PipelineResult | null>(null);
 const urlStatuses = ref<Array<{ url: string; ok: boolean | null; error?: string }>>([]);
+const pipelineError = ref<string | null>(null);
 let activeEventSource: EventSource | null = null;
 
 const input = ref({ competitors: "", topics: "", urls: "" });
@@ -270,6 +288,7 @@ function submitResearch(): void {
   isRunning.value = true;
   result.value = null;
   progressLog.value = [];
+  pipelineError.value = null;
   // Pre-populate URL statuses as pending
   urlStatuses.value = parsedUrls.value.map(url => ({ url, ok: null }));
   activeTab.value = "progress";
@@ -306,7 +325,7 @@ function submitResearch(): void {
         activeEventSource = null;
       } else if (data.stage === "error") {
         isRunning.value = false;
-        progressLog.value.push({ icon: "❌", text: data.message, type: "error" });
+        pipelineError.value = data.message;
         eventSource.close();
         activeEventSource = null;
       } else if (!data.url_status) {
@@ -323,7 +342,7 @@ function submitResearch(): void {
     activeEventSource = null;
     if (!result.value && isRunning.value) {
       isRunning.value = false;
-      progressLog.value.push({ icon: "❌", text: "Connection closed unexpectedly.", type: "error" });
+      pipelineError.value = "Connection to the server was lost. Please try again.";
     }
   };
 }
@@ -352,11 +371,17 @@ function sourceDomain(url: string): string {
   }
 }
 
+function retryResearch(): void {
+  pipelineError.value = null;
+  submitResearch();
+}
+
 function resetForm(): void {
   input.value = { competitors: "", topics: "", urls: "" };
   result.value = null;
   progressLog.value = [];
   urlStatuses.value = [];
+  pipelineError.value = null;
   fieldErrors.value = { competitors: "", urls: "" };
   activeTab.value = "input";
 }
@@ -763,5 +788,42 @@ function resetForm(): void {
   padding: 2rem;
   text-align: center;
   color: var(--color-text-muted);
+}
+
+.progress-note {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--color-border);
+}
+
+.error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.error-banner-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.error-banner-icon { flex-shrink: 0; font-size: 1.1rem; }
+
+.error-banner-msg {
+  font-size: 0.9rem;
+  color: #991b1b;
+  line-height: 1.5;
+}
+
+.error-banner-actions {
+  display: flex;
+  gap: 0.75rem;
 }
 </style>

@@ -1,9 +1,8 @@
 import logging
+import re
 import time
-from dataclasses import dataclass
 from typing import AsyncGenerator
 
-from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from src.backend.pipeline.judge import JudgeVerdict, verify_summary
@@ -12,6 +11,48 @@ from src.backend.pipeline.scraper import scrape_urls
 from src.backend.pipeline.summarizer import MarketSummary, summarize
 
 logger = logging.getLogger(__name__)
+
+
+def _friendly_llm_error(exc: Exception) -> str:
+    """Map raw LLM provider exceptions to short, user-readable messages."""
+    msg = str(exc)
+    if "503" in msg or "UNAVAILABLE" in msg or "high demand" in msg.lower():
+        return (
+            "The AI model is temporarily overloaded (free-tier demand spike). "
+            "Please try again after some time."
+        )
+    if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower() or "exhausted" in msg.lower():
+        return (
+            "Free-tier rate limit reached. "
+            "Wait a minute and retry, or check your Google AI Studio quota at aistudio.google.com."
+        )
+    if "401" in msg or "403" in msg or "api_key" in msg.lower() or "api key" in msg.lower():
+        return "LLM API key is invalid or missing. Check GOOGLE_API_KEY in .env."
+    # Strip raw Python dicts / JSON blobs — keep only the first sentence fragment
+    clean = re.split(r"\{|\n", msg)[0].strip().rstrip(".")
+    return clean or "LLM call failed. Check your API key and try again."
+
+
+def _friendly_scrape_error(error: str | None) -> str:
+    """Map raw scraper error strings to short, user-readable messages."""
+    if not error:
+        return "Could not fetch this URL."
+    e = error.lower()
+    if "403" in e or "forbidden" in e:
+        return "Blocked by site (bot protection / Cloudflare). Try a different page from this site."
+    if "404" in e or "not found" in e:
+        return "Page not found (404). Check the URL is correct and publicly accessible."
+    if "429" in e or "too many" in e:
+        return "Rate-limited by the site. Wait a few minutes and retry."
+    if "timeout" in e or "timed out" in e:
+        return "Request timed out. The site may be slow or blocking automated access."
+    if "ssl" in e or "certificate" in e:
+        return "SSL/certificate error. The site may have an invalid certificate."
+    if "no content" in e or "empty" in e or "nothing extracted" in e:
+        return "No readable content extracted. The page may be JavaScript-rendered or paywalled."
+    if "connection" in e or "network" in e or "refused" in e:
+        return "Network error reaching the site. Check the URL and try again."
+    return error
 
 
 class PipelineResult(BaseModel):
@@ -78,11 +119,12 @@ async def run_pipeline_async(
                     "url_status": {"url": r.url, "ok": True},
                 }
             else:
+                friendly_err = _friendly_scrape_error(r.error)
                 yield {
                     "stage": "scraping",
-                    "message": f"Failed {r.url}: {r.error}",
+                    "message": f"Failed {r.url}: {friendly_err}",
                     "progress": 10,
-                    "url_status": {"url": r.url, "ok": False, "error": r.error},
+                    "url_status": {"url": r.url, "ok": False, "error": friendly_err},
                 }
 
         if not successful:
@@ -128,7 +170,7 @@ async def run_pipeline_async(
         except Exception as e:
             yield {
                 "stage": "error",
-                "message": f"Failed to initialise LLM: {e}",
+                "message": _friendly_llm_error(e),
                 "progress": 0,
             }
             return
@@ -138,7 +180,7 @@ async def run_pipeline_async(
         except Exception as e:
             yield {
                 "stage": "error",
-                "message": f"Summarization failed: {e}",
+                "message": _friendly_llm_error(e),
                 "progress": 0,
             }
             return
@@ -164,7 +206,7 @@ async def run_pipeline_async(
         except Exception as e:
             yield {
                 "stage": "error",
-                "message": f"Hallucination check failed: {e}",
+                "message": _friendly_llm_error(e),
                 "progress": 0,
             }
             return
