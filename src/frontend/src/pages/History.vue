@@ -33,6 +33,7 @@
         <thead>
           <tr>
             <th>Date</th>
+            <th>Competitors</th>
             <th>Topics</th>
             <th>URLs</th>
             <th>Trust Score</th>
@@ -43,6 +44,12 @@
         <tbody>
           <tr v-for="run in runs" :key="run.id" :class="{ selected: selectedRun?.id === run.id }">
             <td>{{ formatDate(run.created_at) }}</td>
+            <td>
+              <span class="tag-list">
+                <span v-for="(c, i) in run.competitors.slice(0, 2)" :key="i" class="tag tag-competitor">{{ c }}</span>
+                <span v-if="run.competitors.length > 2" class="tag tag-competitor">+{{ run.competitors.length - 2 }}</span>
+              </span>
+            </td>
             <td>
               <span class="tag-list">
                 <span v-for="(topic, i) in run.topics.slice(0, 2)" :key="i" class="tag">{{ topic }}</span>
@@ -296,6 +303,11 @@ onMounted(() => {
   border-radius: 3px;
   font-size: 0.75rem;
   font-weight: 500;
+}
+
+.tag-competitor {
+  background: #fce7f3;
+  color: #9d174d;
 }
 
 .btn-view {
