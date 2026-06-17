@@ -96,7 +96,7 @@ async def run_research(
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in query params: {e}")
         async def error_gen():
-            yield json.dumps({"stage": "error", "message": f"Invalid input: {str(e)}", "progress": 0})
+            yield json.dumps({"stage": "error", "message": "Invalid input format. Please check your entries and try again.", "progress": 0})
         return EventSourceResponse(error_gen())
 
     async def event_generator():
@@ -143,7 +143,7 @@ async def run_research(
 
         except Exception as e:
             logger.error(f"Error in event_generator: {e}")
-            yield json.dumps({"stage": "error", "message": f"Server error: {str(e)}", "progress": 0})
+            yield json.dumps({"stage": "error", "message": "An unexpected error occurred. Please try again or contact support if the problem persists.", "progress": 0})
 
     return EventSourceResponse(event_generator())
 

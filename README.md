@@ -30,8 +30,9 @@ grounded in what was actually written.
 | | URL |
 |---|---|
 | **Frontend** | https://green-river-07505240f.7.azurestaticapps.net |
-| **API (Swagger UI)** | https://market-research-api.wonderfulwave-7cb4df30.westus3.azurecontainerapps.io/docs |
 | **Health check** | https://market-research-api.wonderfulwave-7cb4df30.westus3.azurecontainerapps.io/health |
+
+**API Documentation (Swagger UI):** Available at `/docs` on the backend. The hosted environment may occasionally show styling issues due to external Swagger asset loading restrictions in the production network. The API functionality remains fully operational and unaffected. The complete Swagger experience works locally (see Local Setup below).
 
 ---
 
