@@ -2,7 +2,6 @@ import logging
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from src.backend.pipeline.prompts import render_judge_prompt
@@ -167,22 +166,3 @@ def verify_summary(
             # Continue with next claim rather than failing entirely
 
     return verdicts
-
-
-def count_hallucinations(verdicts: list[JudgeVerdict], confidence_threshold: float = 0.95) -> int:
-    """Count hallucinations in verdicts.
-
-    A hallucination is: supported=False AND confidence > threshold
-    (high-confidence claim that is unsupported)
-
-    Args:
-        verdicts: List of JudgeVerdicts from verify_summary()
-        confidence_threshold: Minimum confidence to count as hallucination (default 0.7)
-
-    Returns:
-        Number of hallucinations found
-    """
-    hallucinations = [
-        v for v in verdicts if not v.supported and v.confidence > confidence_threshold
-    ]
-    return len(hallucinations)

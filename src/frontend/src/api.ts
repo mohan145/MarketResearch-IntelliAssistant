@@ -88,9 +88,6 @@ export function streamResearch(payload: ResearchRequest): EventSource {
     url += `&token=${token}`;
   }
 
-  console.log("streamResearch URL:", url);
-  console.log("BASE_URL:", BASE_URL);
-
   return new EventSource(url);
 }
 

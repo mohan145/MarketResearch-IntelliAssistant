@@ -248,6 +248,8 @@ def run_pipeline(
                     raise RuntimeError(event["message"])
 
         loop.run_until_complete(collect_result())
+        if result is None:
+            raise RuntimeError("Pipeline completed but no result was generated")
         return result
 
     finally:

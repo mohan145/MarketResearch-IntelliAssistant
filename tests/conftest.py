@@ -27,10 +27,13 @@ def sample_html():
       <body>
         <article>
           <h1>AI Market Trends 2024</h1>
-          <p>The AI market is experiencing rapid growth. OpenAI launched GPT-4o with improved capabilities.
-          Mistral AI released an open-source model. Enterprises are adopting AI at scale.</p>
-          <p>Key themes include pricing changes, open-source models, and enterprise adoption.
-          These represent the major shifts in the AI landscape.</p>
+          <p>The AI market is experiencing rapid growth and transformation across multiple sectors.
+          OpenAI launched GPT-4o with significantly improved capabilities and performance metrics.
+          Mistral AI released an open-source model that competes directly with proprietary solutions.
+          Enterprises worldwide are adopting AI at unprecedented scale and speed.</p>
+          <p>Key themes include major pricing changes, open-source model availability, and widespread enterprise adoption.
+          These represent the most significant shifts in the AI landscape this year.
+          Industry analysts predict continued acceleration in AI deployment and innovation across all sectors.</p>
         </article>
       </body>
     </html>

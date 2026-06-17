@@ -3,7 +3,6 @@ from datetime import datetime
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from src.backend.pipeline.prompts import render_summarize_prompt

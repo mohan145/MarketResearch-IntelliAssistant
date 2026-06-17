@@ -340,7 +340,7 @@ function getIcon(stage: string): string {
 
 function isHallucination(finding: string): boolean {
   if (!result.value) return false;
-  return result.value.verdicts.some(v => !v.supported && v.confidence > 0.7 &&
+  return result.value.verdicts.some(v => !v.supported && v.confidence > 0.95 &&
     v.claim.includes(finding.substring(0, 40)));
 }
 
